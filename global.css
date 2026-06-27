@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Ajami Design System — CSS Custom Properties ──────────────── */
+
+:root {
+  /* Brand Colors */
+  --color-emerald:       #0E9F6E;
+  --color-emerald-light: #E6F7F2;
+  --color-emerald-dark:  #087550;
+  --color-gold:          #D4A017;
+  --color-gold-light:    #FDF6E3;
+  --color-gold-dark:     #9C730F;
+  --color-navy:          #0F172A;
+  --color-sky:           #3B82F6;
+
+  /* Semantic */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-streak:  #FB923C;
+  --color-error:   #EF4444;
+  --color-info:    #3B82F6;
+
+  /* Neutrals */
+  --color-text-primary:   #0F172A;
+  --color-text-secondary: #64748B;
+  --color-border:         #E2E8F0;
+  --color-surface:        #F8FAFC;
+  --color-background:     #FFFFFF;
+
+  /* Typography */
+  --font-poppins: "Poppins";
+  --font-noto:    "NotoSansArabic";
+
+  /* Spacing scale */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Radius */
+  --radius-sm:   4px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   20px;
+  --radius-2xl:  24px;
+  --radius-full: 9999px;
+}
+
+/* ─── Platform-specific font families ──────────────────────────── */
+@media android {
+  :root {
+    --font-mono:    monospace;
+    --font-rounded: normal;
+    --font-serif:   serif;
+    --font-sans:    normal;
+  }
+}
+
+@media ios {
+  :root {
+    --font-mono:    ui-monospace;
+    --font-serif:   ui-serif;
+    --font-sans:    system-ui;
+    --font-rounded: ui-rounded;
+  }
+}
