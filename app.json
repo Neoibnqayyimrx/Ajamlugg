@@ -8,7 +8,7 @@
     "scheme": "ajamlugg",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/icon.png"
     },
     "android": {
       "adaptiveIcon": {
@@ -34,7 +34,10 @@
             "imageWidth": 76
           }
         }
-      ]
+      ],
+      "expo-font",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
