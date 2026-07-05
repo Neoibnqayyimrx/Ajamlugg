@@ -19,10 +19,8 @@ import {
   View,
   Text as RNText,
 } from "react-native";
-import { Text } from "./text";
 import { palette } from "@/constants/colors";
 import { radius } from "@/constants/layout";
-import { typeScale } from "@/constants/typography";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "streak";

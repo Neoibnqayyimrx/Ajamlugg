@@ -1,11 +1,3 @@
-/**
- * app/index.tsx
- *
- * Entry point — redirects based on Clerk auth state.
- *   Signed in  → / renders home content
- *   Signed out → /onboarding
- */
-
 import { useAuth } from "@clerk/clerk-expo";
 import { Redirect } from "expo-router";
 import { ActivityIndicator, View } from "react-native";

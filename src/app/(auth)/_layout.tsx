@@ -21,14 +21,7 @@ export default function AuthRoutesLayout() {
   // remount/flash issues some Expo Router versions have with null layouts.
   if (!isLoaded) {
     return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: "center",
-          justifyContent: "center",
-          backgroundColor: "#FAF6F0",
-        }}
-      >
+      <View className="flex-1 items-center justify-center bg-[#FAF6F0]">
         <ActivityIndicator size="large" color="#0E9F6E" />
       </View>
     );

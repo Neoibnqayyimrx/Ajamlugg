@@ -18,14 +18,14 @@ import {
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const { signUp, setActive, isLoaded } = useSignUp();
+  const { signUp, isLoaded } = useSignUp();
 
-  const [email, setEmail]               = useState("");
-  const [password, setPassword]         = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
-  const [error, setError]               = useState<string | null>(null);
-  const [loading, setLoading]           = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const handleSignUp = async () => {
     if (!isLoaded) return;
@@ -48,119 +48,115 @@ export default function SignUpScreen() {
   };
 
   return (
-    <>
+    <KeyboardAvoidingView
+      className="flex-1 bg-[#FAF6F0]"
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <StatusBar barStyle="dark-content" />
-
-      <KeyboardAvoidingView
-        className="flex-1 bg-[#FAF6F0]"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+        {/* Back */}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="mt-14 ml-5 w-10 h-10 items-center justify-center"
         >
-          {/* Back */}
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="mt-14 ml-5 w-10 h-10 items-center justify-center"
-          >
-            <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
-          </TouchableOpacity>
+          <Ionicons name="chevron-back" size={24} color="#1A1A2E" />
+        </TouchableOpacity>
 
-          {/* Header + Mascot */}
-          <View className="px-6 mt-1">
-            <Text className="font-[Poppins-Bold] text-[28px] text-[#1A1A2E]">
-              Create your account
-            </Text>
-            <Text className="font-[Poppins-Regular] text-base text-[#6B7280] mt-1">
-              Start your language journey today ✨
-            </Text>
-            <Image
-              source={require("@/assets/images/mascot-auth.png")}
-              className="w-full h-64 mt-2"
-              resizeMode="contain"
-              style={{ marginBottom: -24 }}
+        {/* Header + Mascot */}
+        <View className="px-6 mt-1">
+          <Text className="font-[Poppins-Bold] text-[28px] text-[#1A1A2E]">
+            Create your account
+          </Text>
+          <Text className="font-[Poppins-Regular] text-base text-[#6B7280] mt-1">
+            Start your language journey today ✨
+          </Text>
+          <Image
+            source={require("@/assets/images/mascot-auth.png")}
+            className="w-full h-64 mt-2"
+            resizeMode="contain"
+            style={{ marginBottom: -24 }}
+          />
+        </View>
+
+        {/* Form — mascot marginBottom:-24 pulls this up tight */}
+        <View className="px-5 gap-3">
+          {/* Email */}
+          <View className="bg-white rounded-2xl px-4 pt-2.5 pb-3 border border-[#E5E7EB]">
+            <Text className="text-xs text-[#9CA3AF]">Email</Text>
+            <TextInput
+              className="text-base text-[#1A1A2E] mt-0.5"
+              placeholder="you@example.com"
+              placeholderTextColor="#D1D5DB"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              value={email}
+              onChangeText={setEmail}
             />
           </View>
 
-          {/* Form — mascot marginBottom:-24 pulls this up tight */}
-          <View className="px-5 gap-3">
-            {/* Email */}
-            <View className="bg-white rounded-2xl px-4 pt-2.5 pb-3 border border-[#E5E7EB]">
-              <Text className="text-xs text-[#9CA3AF]">Email</Text>
+          {/* Password */}
+          <View className="bg-white rounded-2xl px-4 pt-2.5 pb-3 border border-[#E5E7EB] flex-row items-center">
+            <View className="flex-1">
+              <Text className="text-xs text-[#9CA3AF]">Password</Text>
               <TextInput
                 className="text-base text-[#1A1A2E] mt-0.5"
-                placeholder="you@example.com"
+                placeholder="••••••••"
                 placeholderTextColor="#D1D5DB"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                value={email}
-                onChangeText={setEmail}
+                secureTextEntry={!showPassword}
+                autoComplete="new-password"
+                value={password}
+                onChangeText={setPassword}
               />
             </View>
-
-            {/* Password */}
-            <View className="bg-white rounded-2xl px-4 pt-2.5 pb-3 border border-[#E5E7EB] flex-row items-center">
-              <View className="flex-1">
-                <Text className="text-xs text-[#9CA3AF]">Password</Text>
-                <TextInput
-                  className="text-base text-[#1A1A2E] mt-0.5"
-                  placeholder="••••••••"
-                  placeholderTextColor="#D1D5DB"
-                  secureTextEntry={!showPassword}
-                  autoComplete="new-password"
-                  value={password}
-                  onChangeText={setPassword}
-                />
-              </View>
-              <TouchableOpacity onPress={() => setShowPassword((v) => !v)}>
-                <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
-                  size={22}
-                  color="#9CA3AF"
-                />
-              </TouchableOpacity>
-            </View>
-
-            {/* Error */}
-            {error ? (
-              <Text className="text-sm text-[#EF4444] px-1">{error}</Text>
-            ) : null}
-
-            {/* Sign Up CTA */}
-            <TouchableOpacity
-              onPress={handleSignUp}
-              disabled={loading || !email || !password}
-              className="bg-[#1E6B4A] rounded-2xl py-4 items-center mt-1"
-              activeOpacity={0.85}
-              style={{ opacity: loading || !email || !password ? 0.6 : 1 }}
-            >
-              <Text className="font-[Poppins-SemiBold] text-white text-base">
-                {loading ? "Creating account..." : "Sign Up"}
-              </Text>
+            <TouchableOpacity onPress={() => setShowPassword((v) => !v)}>
+              <Ionicons
+                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                size={22}
+                color="#9CA3AF"
+              />
             </TouchableOpacity>
           </View>
 
-          {/* Divider */}
-          <View className="flex-row items-center px-5 my-5">
-            <View className="flex-1 h-px bg-[#E5E7EB]" />
-            <Text className="mx-3 text-sm text-[#9CA3AF]">or continue with</Text>
-            <View className="flex-1 h-px bg-[#E5E7EB]" />
-          </View>
+          {/* Error */}
+          {error ? (
+            <Text className="text-sm text-[#EF4444] px-1">{error}</Text>
+          ) : null}
 
-          <SocialAuthButtons />
+          {/* Sign Up CTA */}
+          <TouchableOpacity
+            onPress={handleSignUp}
+            disabled={loading || !email || !password}
+            className="bg-[#1E6B4A] rounded-2xl py-4 items-center mt-1"
+            activeOpacity={0.85}
+            style={{ opacity: loading || !email || !password ? 0.6 : 1 }}
+          >
+            <Text className="font-[Poppins-SemiBold] text-white text-base">
+              {loading ? "Creating account..." : "Sign Up"}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-          {/* Footer */}
-          <View className="flex-row justify-center mt-8 mb-10">
-            <Text className="text-sm text-[#6B7280]">Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.push("/(auth)/sign-in")}>
-              <Text className="text-sm text-[#1E6B4A] font-semibold">Log in</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {/* Divider */}
+        <View className="flex-row items-center px-5 my-5">
+          <View className="flex-1 h-px bg-[#E5E7EB]" />
+          <Text className="mx-3 text-sm text-[#9CA3AF]">or continue with</Text>
+          <View className="flex-1 h-px bg-[#E5E7EB]" />
+        </View>
+
+        <SocialAuthButtons />
+        {/* Footer */}
+        <View className="flex-row justify-center mt-8 mb-10">
+          <Text className="text-sm text-[#6B7280]">Already have an account? </Text>
+          <TouchableOpacity onPress={() => router.push("/(auth)/sign-in")}>
+            <Text className="text-sm text-[#1E6B4A] font-semibold">Log in</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
       <EmailVerificationModal
         visible={showVerification}
@@ -168,6 +164,6 @@ export default function SignUpScreen() {
         onVerified={handleVerified}
         onClose={() => setShowVerification(false)}
       />
-    </>
+    </KeyboardAvoidingView>
   );
 }

@@ -21,14 +21,7 @@ import { ActivityIndicator, View } from "react-native";
 
 function Spinner() {
   return (
-    <View
-      style={{
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#FAF6F0",
-      }}
-    >
+    <View className="flex-1 items-center justify-center bg-[#FAF6F0]">
       <ActivityIndicator size="large" color="#1B6B3A" />
     </View>
   );
@@ -52,7 +45,7 @@ export default function HomeLayout() {
     if (isLoaded && isSignedIn && isHydrated && selectedLanguageId === null) {
       router.replace("/(home)/languages");
     }
-  }, [isLoaded, isSignedIn, isHydrated, selectedLanguageId]);
+  }, [isLoaded, isSignedIn, isHydrated, selectedLanguageId, router]);
 
   // ── 1. Wait for Clerk ──────────────────────────────────────────────────────
   if (!isLoaded) return <Spinner />;
@@ -115,6 +108,15 @@ export default function HomeLayout() {
         options={{
           href: null,
           tabBarStyle: { display: "none" },
+        }}
+      />
+      {/* Hidden — AI Teacher audio lesson, opened from Learn with a lessonId.
+          Not a tab itself; the tab bar stays visible with Learn highlighted
+          (see PARENT_TAB in CustomTabBar). */}
+      <Tabs.Screen
+        name="audio-lesson"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

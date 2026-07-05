@@ -53,10 +53,16 @@ export const useLanguageStore = create<LanguageState>()(
       name: "ajamlugg-language",                        // AsyncStorage key
       storage: createJSONStorage(() => AsyncStorage),
 
+      // Only persist the user's choice — isHydrated is a runtime-only flag
+      // and must never be written to (or restored from) AsyncStorage.
+      partialize: (state) => ({ selectedLanguageId: state.selectedLanguageId }),
+
       // Called when the store has finished reading from AsyncStorage.
-      // Setting isHydrated here gives routing guards a reliable signal.
-      onRehydrateStorage: () => (state) => {
-        if (state) state.isHydrated = true;
+      // Must go through setState (not a direct mutation) so subscribed
+      // components re-render — otherwise the routing guard's spinner can
+      // hang waiting for a hydration signal that never arrives.
+      onRehydrateStorage: () => () => {
+        useLanguageStore.setState({ isHydrated: true });
       },
     }
   )

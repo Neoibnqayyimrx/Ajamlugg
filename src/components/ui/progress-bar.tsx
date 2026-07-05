@@ -8,10 +8,9 @@
  *   <ProgressBar progress={0.3} variant="gold" height={10} />
  */
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Animated, StyleSheet, ViewProps } from "react-native";
 import { palette } from "@/constants/colors";
-import { radius, neutral } from "@/constants/layout";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 export type ProgressVariant = "emerald" | "gold" | "sky" | "streak";
@@ -47,7 +46,8 @@ export function ProgressBar({
   style,
   ...rest
 }: ProgressBarProps) {
-  const animValue = useRef(new Animated.Value(0)).current;
+  // useState initializer (not useRef.current) — safe to read during render
+  const [animValue] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     const clampedProgress = Math.min(Math.max(progress, 0), 1);
@@ -60,7 +60,7 @@ export function ProgressBar({
     } else {
       animValue.setValue(clampedProgress);
     }
-  }, [progress, animated]);
+  }, [progress, animated, animValue]);
 
   const widthInterpolation = animValue.interpolate({
     inputRange:  [0, 1],

@@ -8,12 +8,6 @@
       ],
       "@/assets/*": [
         "./assets/*"
-      ],
-      "@/tw": [
-        "./src/tw/index.tsx"
-      ],
-      "@/tw/*": [
-        "./src/tw/*"
       ]
     }
   },

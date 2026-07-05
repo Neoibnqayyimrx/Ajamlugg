@@ -2,7 +2,7 @@
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
 import { tokenCache } from "@clerk/clerk-expo/token-cache";
 import { useFonts } from "expo-font";
-import { Redirect, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -18,12 +18,12 @@ if (!publishableKey) {
 
 // ─── Inner layout — can use Clerk hooks here ────────────────────────────────
 function RootLayoutNav() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isLoaded } = useAuth();
 
   // Show a spinner while Clerk initialises (prevents blank screen on reload)
   if (!isLoaded) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#FAF6F0" }}>
+      <View className="flex-1 items-center justify-center bg-[#FAF6F0]">
         <ActivityIndicator size="large" color="#0E9F6E" />
       </View>
     );
@@ -31,6 +31,7 @@ function RootLayoutNav() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      {/* index handles its own auth-based <Redirect> — see app/index.tsx */}
       <Stack.Screen name="index" />
       <Stack.Screen name="onboarding/index" />
       <Stack.Screen name="(auth)" />

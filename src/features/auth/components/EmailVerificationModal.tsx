@@ -53,23 +53,28 @@ export function EmailVerificationModal({
   const [resent, setResent] = useState(false);
 
   const inputRef = useRef<TextInput>(null);
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  // useState initializer (not useRef.current) — safe to read during render
+  const [shakeAnim] = useState(() => new Animated.Value(0));
 
-  useEffect(() => {
+  // Reset the form whenever the modal is (re)opened.
+  // "Adjust state while rendering" pattern — avoids an extra effect render.
+  const [prevVisible, setPrevVisible] = useState(visible);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
     if (visible) {
       setCode("");
       setError(null);
       setResent(false);
       setLoading(false);
-      setTimeout(() => inputRef.current?.focus(), 400);
     }
-  }, [visible]);
+  }
 
+  // Focus the hidden input once the open animation has settled
   useEffect(() => {
-    if (code.length === CODE_LENGTH) {
-      handleVerify(code);
-    }
-  }, [code]);
+    if (!visible) return;
+    const timer = setTimeout(() => inputRef.current?.focus(), 400);
+    return () => clearTimeout(timer);
+  }, [visible]);
 
   // ── Determine active flow ──────────────────────────────────────────────────
 
@@ -217,6 +222,8 @@ export function EmailVerificationModal({
               const cleaned = v.replace(/\D/g, "").slice(0, CODE_LENGTH);
               setCode(cleaned);
               if (error) setError(null);
+              // Auto-submit as soon as the last digit is typed
+              if (cleaned.length === CODE_LENGTH) handleVerify(cleaned);
             }}
             keyboardType="number-pad"
             maxLength={CODE_LENGTH}
@@ -289,7 +296,7 @@ export function EmailVerificationModal({
           {/* Resend */}
           <TouchableOpacity className="py-1" onPress={handleResend} hitSlop={8}>
             <Text className="text-sm text-[#64748B]">
-              Didn't receive it?{" "}
+              Didn&apos;t receive it?{" "}
               <Text className="text-[#0E9F6E] font-semibold">Resend code</Text>
             </Text>
           </TouchableOpacity>

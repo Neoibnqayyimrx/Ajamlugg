@@ -1,34 +1,19 @@
-/**
- * app/(home)/index.tsx
- *
- * Home Dashboard Screen
- *
- * Sections (matching design 05-home-and-tab-navigation):
- *  1. Header       — mascot avatar, greeting, streak badge, bell
- *  2. Daily Goal   — XP progress card with treasure chest
- *  3. Continue     — Full-width dark-green learning card
- *  4. Today's Plan — Checklist of today's activities
- *  5. Next Up      — AI Video Call promo banner
- */
-
+// Home screen migrated to NativeWind styling
 import { useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 
 import images from "@/constants/images";
 import { LANGUAGES } from "@/data/languages";
-import { LESSONS } from "@/data/lessons";
 import { UNITS } from "@/data/units";
 import { useLanguageStore } from "@/store/useLanguageStore";
 
-// ── Mock progress data (will come from a progress store in a future step) ─────
+// Mock progress data
 const STREAK_DAYS = 12;
 const XP_TODAY = 15;
 const XP_GOAL = 20;
 
-// ── Today's plan items ────────────────────────────────────────────────────────
 const TODAY_PLAN = [
   {
     id: "lesson",
@@ -56,135 +41,93 @@ const TODAY_PLAN = [
   },
 ];
 
-// ── Colors ────────────────────────────────────────────────────────────────────
 const C = {
-  bg:           "#FAF6F0",
-  surface:      "#FFFFFF",
-  green:        "#1B6B3A",
-  greenLight:   "#E8F5EE",
-  greenMid:     "#2D8653",
-  gold:         "#D4A017",
-  goldLight:    "#FDF6E3",
-  text:         "#1A1A1A",
-  textSub:      "#6B7280",
-  border:       "#EDE8E0",
+  bg: "#FAF6F0",
+  surface: "#FFFFFF",
+  green: "#1B6B3A",
+  greenLight: "#E8F5EE",
+  greenMid: "#2D8653",
+  gold: "#D4A017",
+  goldLight: "#FDF6E3",
+  text: "#1A1A1A",
+  textSub: "#6B7280",
+  border: "#EDE8E0",
   streakOrange: "#E8511A",
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Circular avatar — shows Clerk profile photo or mascot fallback */
 function AvatarBubble({ imageUrl }: { imageUrl?: string | null }) {
   return (
-    <View style={styles.avatarOuter}>
+    <View className="w-[60px] h-[60px] rounded-full bg-[#E8F5EE] overflow-hidden border-2 border-[#FFFFFF] shadow-md">
       {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={styles.avatarImg} />
+        <Image source={{ uri: imageUrl }} className="w-[60px] h-[60px] rounded-full" />
       ) : (
-        <Image source={images.mascotLogo} style={styles.avatarImg} resizeMode="cover" />
+        <Image source={images.mascotLogo} className="w-[60px] h-[60px] rounded-full" resizeMode="cover" />
       )}
     </View>
   );
 }
 
-/** Streak badge — fire icon + day count */
 function StreakBadge({ days }: { days: number }) {
   return (
-    <View style={styles.streakBadge}>
-      <Image source={images.streakFire} style={styles.streakFireImg} resizeMode="contain" />
+    <View className="flex-row items-center bg-[#FFFFFF] rounded-md px-2.5 py-2 gap-1.5 shadow-sm">
+      <Image source={images.streakFire} className="w-6 h-6" resizeMode="contain" />
       <View>
-        <Text style={styles.streakCount}>{days}</Text>
-        <Text style={styles.streakLabel}>Day streak</Text>
+        <Text className="font-poppins-bold text-[#1A1A1A] text-base">{days}</Text>
+        <Text className="font-poppins-regular text-[#6B7280] text-xs">Day streak</Text>
       </View>
     </View>
   );
 }
 
-/** Bell button with notification dot */
 function BellButton({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={styles.bellBtn}>
+    <Pressable onPress={onPress} className="w-10 h-10 rounded-md bg-[#FFFFFF] flex items-center justify-center shadow-sm relative">
       <Ionicons name="notifications-outline" size={22} color={C.text} />
-      <View style={styles.bellDot} />
+      <View className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-[#D4A017] border-[1.5px] border-[#FFFFFF]" />
     </Pressable>
   );
 }
 
-/** Daily XP goal card */
 function DailyGoalCard({ xp, goal }: { xp: number; goal: number }) {
   const pct = Math.min(xp / goal, 1);
   const remaining = goal - xp;
-
   return (
-    <View style={styles.goalCard}>
-      {/* Left content */}
-      <View style={styles.goalLeft}>
-        <Text style={styles.goalLabel}>Daily goal</Text>
-
-        {/* XP numbers */}
-        <View style={styles.goalXpRow}>
-          <Text style={styles.goalXpBig}>{xp}</Text>
-          <Text style={styles.goalXpOf}> / {goal} XP</Text>
+    <View className="bg-[#FFFFFF] rounded-2xl p-5 flex-row items-center border border-[#EDE8E0] shadow-md overflow-hidden">
+      <View className="flex-1 gap-2">
+        <Text className="font-poppins-semibold text-[#1B6B3A] text-sm">Daily goal</Text>
+        <View className="flex-row items-baseline">
+          <Text className="font-poppins-bold text-4xl text-[#1A1A1A]">{xp}</Text>
+          <Text className="font-poppins-regular text-base text-[#6B7280]"> / {goal} XP</Text>
         </View>
-
-        {/* Progress bar */}
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${pct * 100}%` as any }]} />
-          {/* Gold star marker at progress point */}
-          <View style={[styles.progressStar, { left: `${pct * 100}%` as any }]}>
+        <View className="h-2.5 bg-[#EDE8E0] rounded-md overflow-visible mr-2 relative">
+          <View className="h-full bg-[#1B6B3A] rounded-md" style={{ width: `${pct * 100}%` }} />
+          <View style={{ position: "absolute", top: -4, left: `${pct * 100}%` }}>
             <Ionicons name="star" size={16} color={C.gold} />
           </View>
         </View>
-
-        {/* Motivating subtitle */}
-        <View style={styles.goalSubRow}>
+        <View className="flex-row items-center gap-1 mt-0.5">
           <Ionicons name="star" size={13} color={C.gold} />
-          <Text style={styles.goalSubText}>
+          <Text className="font-poppins-regular text-[#D4A017] text-sm">
             {remaining > 0 ? `${remaining} XP to go! Keep it up!` : "Daily goal reached! 🎉"}
           </Text>
         </View>
       </View>
-
-      {/* Treasure chest */}
-      <Image source={images.treasure} style={styles.treasureImg} resizeMode="contain" />
+      <Image source={images.treasure} className="w-[90px] h-[90px] -mr-2 ml-2" resizeMode="contain" />
     </View>
   );
 }
 
-/** Continue learning card — dark green, shows current language & unit */
-function ContinueLearningCard({
-  languageName,
-  unitTitle,
-  unitOrder,
-  onPress,
-}: {
-  languageName: string;
-  unitTitle: string;
-  unitOrder: number;
-  onPress: () => void;
-}) {
+function ContinueLearningCard({ languageName, unitOrder, onPress }: { languageName: string; unitOrder: number; onPress: () => void }) {
   return (
-    <View style={styles.continueCard}>
-      {/* Background mosque image (semi-transparent, right side) */}
-      <Image
-        source={images.ajam}
-        style={styles.continueBgImg}
-        resizeMode="cover"
-      />
-
-      {/* Gradient overlay — darkens the left so text is readable */}
-      <View style={styles.continueOverlay} />
-
-      {/* Content */}
-      <View style={styles.continueContent}>
-        <Text style={styles.continueEyebrow}>Continue learning</Text>
-        <Text style={styles.continueLangName}>{languageName}</Text>
-        <Text style={styles.continueMeta}>Level A1 · Unit {unitOrder}</Text>
-
-        {/* Continue button */}
-        <Pressable onPress={onPress} style={styles.continueBtn} android_ripple={{ color: "rgba(255,255,255,0.15)" }}>
-          <Text style={styles.continueBtnText}>Continue</Text>
+    <View className="h-[200px] rounded-2xl bg-[#1B6B3A] overflow-hidden border-[1.5px] border-[#D4A017] relative">
+      <Image source={images.ajam} className="absolute -right-5 -bottom-2.5 w-[70%] h-[130%] opacity-35" resizeMode="cover" />
+      <View className="absolute inset-0 w-[65%] bg-green-500/30" />
+      <View className="p-5 flex-1 justify-between gap-1">
+        <Text className="font-poppins-semibold text-[#D4A017] text-xs">Continue learning</Text>
+        <Text className="font-poppins-bold text-[#FFFFFF] text-2xl">{languageName}</Text>
+        <Text className="font-poppins-regular text-[#FFFFFF]/80 text-sm">Level A1 · Unit {unitOrder}</Text>
+        <Pressable onPress={onPress} className="flex-row items-center gap-1.5 bg-[#FFFFFF] self-start py-2.5 px-5 rounded-full mt-2">
+          <Text className="font-poppins-semibold text-[#1A1A1A] text-sm">Continue</Text>
           <Ionicons name="arrow-forward" size={16} color={C.text} />
         </Pressable>
       </View>
@@ -192,92 +135,56 @@ function ContinueLearningCard({
   );
 }
 
-/** Single task row inside Today's Plan */
-function PlanItem({
-  item,
-  isLast,
-}: {
-  item: (typeof TODAY_PLAN)[number];
-  isLast: boolean;
-}) {
+function PlanItem({ item, isLast }: { item: (typeof TODAY_PLAN)[number]; isLast: boolean }) {
   return (
     <View>
-      <View style={styles.planItem}>
-        {/* Icon chip */}
-        <View style={[styles.planIconWrap, { backgroundColor: item.iconBg }]}>
+      <View className="flex-row items-center p-4 gap-3.5">
+        <View className="w-11 h-11 rounded-lg flex items-center justify-center" style={{ backgroundColor: item.iconBg }}>
           <Ionicons name={item.icon} size={20} color="#FFFFFF" />
         </View>
-
-        {/* Text */}
-        <View style={styles.planItemText}>
-          <Text style={styles.planItemTitle}>{item.type}</Text>
-          <Text style={styles.planItemSub}>{item.subtitle}</Text>
+        <View className="flex-1">
+          <Text className="font-poppins-semibold text-[#1A1A1A] text-sm">{item.type}</Text>
+          <Text className="font-poppins-regular text-[#6B7280] text-xs">{item.subtitle}</Text>
         </View>
-
-        {/* Check circle */}
-        <View
-          style={[
-            styles.planCheck,
-            item.done && { backgroundColor: C.green, borderColor: C.green },
-          ]}
-        >
+        <View className="w-7 h-7 rounded-full border-2 border-[#D4D4D4] flex items-center justify-center" style={item.done ? { backgroundColor: C.green, borderColor: C.green } : {}}>
           {item.done && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
         </View>
       </View>
-
-      {/* Divider between rows */}
-      {!isLast && <View style={styles.planDivider} />}
+      {!isLast && <View className="h-px bg-[#EDE8E0] ml-14" />}
     </View>
   );
 }
 
-/** Today's plan section */
 function TodaysPlanCard({ onViewAll }: { onViewAll: () => void }) {
   return (
     <View>
-      {/* Section header */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Today's plan</Text>
-        <Pressable onPress={onViewAll} style={styles.viewAllBtn}>
-          <Text style={styles.viewAllText}>View all</Text>
+      <View className="flex-row items-center justify-between mb-3">
+        <Text className="font-poppins-bold text-[#1A1A1A] text-lg">Today&apos;s plan</Text>
+        <Pressable onPress={onViewAll} className="flex-row items-center gap-0.5">
+          <Text className="font-poppins-semibold text-[#1B6B3A] text-sm">View all</Text>
           <Ionicons name="chevron-forward" size={14} color={C.green} />
         </Pressable>
       </View>
-
-      {/* Plan card */}
-      <View style={styles.planCard}>
+      <View className="bg-[#FFFFFF] rounded-2xl px-4 border border-[#EDE8E0] shadow-md">
         {TODAY_PLAN.map((item, i) => (
-          <PlanItem
-            key={item.id}
-            item={item}
-            isLast={i === TODAY_PLAN.length - 1}
-          />
+          <PlanItem key={item.id} item={item} isLast={i === TODAY_PLAN.length - 1} />
         ))}
       </View>
     </View>
   );
 }
 
-/** Next Up — AI Video Call promo */
 function NextUpBanner({ onPress }: { onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={styles.nextUpCard} android_ripple={{ color: "rgba(0,0,0,0.05)" }}>
-      {/* Text content */}
-      <View style={styles.nextUpLeft}>
-        <Text style={styles.nextUpEyebrow}>Next up</Text>
-        <Text style={styles.nextUpTitle}>AI Video Call</Text>
-        <Text style={styles.nextUpSub}>Practice speaking with AI</Text>
+    <Pressable onPress={onPress} className="bg-[#EBF5EE] rounded-2xl p-5 flex-row items-center border border-[#C6E3CE] shadow-md" android_ripple={{ color: "rgba(0,0,0,0.05)" }}>
+      <View className="flex-1 gap-[3px]">
+        <Text className="font-poppins-regular text-[#1B6B3A] text-xs">Next up</Text>
+        <Text className="font-poppins-bold text-[#1A1A1A] text-xl">AI Video Call</Text>
+        <Text className="font-poppins-regular text-[#6B7280] text-sm">Practice speaking with AI</Text>
       </View>
-
-      {/* Right side — person + camera icon */}
-      <View style={styles.nextUpRight}>
-        {/* Person placeholder from Picsum */}
-        <Image
-          source={{ uri: "https://i.pravatar.cc/120?img=12" }}
-          style={styles.nextUpPersonImg}
-        />
-        {/* Green camera badge */}
-        <View style={styles.nextUpCamBadge}>
+      <View className="relative w-20 h-20">
+        <Image source={{ uri: "https://i.pravatar.cc/120?img=12" }} className="w-20 h-20 rounded-full border-2 border-[#FFFFFF]" />
+        <View className="absolute bottom-0 right-0 w-[30px] h-[30px] rounded-full bg-[#1B6B3A] flex items-center justify-center border-2 border-[#FFFFFF]">
           <Ionicons name="videocam" size={16} color="#FFFFFF" />
         </View>
       </View>
@@ -285,456 +192,37 @@ function NextUpBanner({ onPress }: { onPress: () => void }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Screen
-// ─────────────────────────────────────────────────────────────────────────────
-
 export default function HomeScreen() {
   const { user } = useUser();
-  const router = useRouter();
   const { selectedLanguageId } = useLanguageStore();
 
-  // ── Derived data ────────────────────────────────────────────────────────────
   const firstName = user?.firstName ?? "Learner";
   const avatarUrl = user?.imageUrl;
 
   const language = LANGUAGES.find((l) => l.id === selectedLanguageId) ?? LANGUAGES[0];
   const currentUnit = UNITS.find((u) => u.languageId === language.id) ?? UNITS[0];
-  const currentLesson = LESSONS.find((l) => l.unitId === currentUnit.id) ?? LESSONS[0];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF6F0" }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24, gap: 20 }}
       >
-
-        {/* ── 1. Header ─────────────────────────────────────────────────────── */}
-        <View style={styles.header}>
-          {/* Avatar */}
+        <View className="flex-row items-center gap-3">
           <AvatarBubble imageUrl={avatarUrl} />
-
-          {/* Greeting */}
-          <View style={styles.greetingBlock}>
-            <Text style={styles.greetingName}>Sannu, {firstName}! 👋</Text>
-            <Text style={styles.greetingSub}>Let's continue your Ajami journey.</Text>
+          <View className="flex-1">
+            <Text className="font-poppins-bold text-[#1A1A1A] text-lg">Sannu, {firstName}! 👋</Text>
           </View>
-
-          {/* Right actions */}
-          <View style={styles.headerRight}>
+          <View className="flex-row items-center gap-2">
             <StreakBadge days={STREAK_DAYS} />
             <BellButton onPress={() => {}} />
           </View>
         </View>
-
-        {/* ── 2. Daily Goal ─────────────────────────────────────────────────── */}
         <DailyGoalCard xp={XP_TODAY} goal={XP_GOAL} />
-
-        {/* ── 3. Continue Learning ──────────────────────────────────────────── */}
-        <ContinueLearningCard
-          languageName={language.name}
-          unitTitle={currentUnit.title}
-          unitOrder={currentUnit.order}
-          onPress={() => {}}
-        />
-
-        {/* ── 4. Today's Plan ───────────────────────────────────────────────── */}
+        <ContinueLearningCard languageName={language.name} unitOrder={currentUnit.order} onPress={() => {}} />
         <TodaysPlanCard onViewAll={() => {}} />
-
-        {/* ── 5. Next Up ────────────────────────────────────────────────────── */}
         <NextUpBanner onPress={() => {}} />
-
-        {/* Bottom spacer so last card clears the tab bar */}
-        <View style={styles.bottomSpacer} />
       </ScrollView>
     </SafeAreaView>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Styles
-// ─────────────────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: C.bg,
-  },
-  scroll: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 20,
-  },
-
-  // ── Header ────────────────────────────────────────────────────────────────
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  avatarOuter: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: C.greenLight,
-    overflow: "hidden",
-    borderWidth: 2,
-    borderColor: C.surface,
-    // Shadow
-    boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-  } as any,
-  avatarImg: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  greetingBlock: {
-    flex: 1,
-  },
-  greetingName: {
-    fontFamily: "Poppins-Bold",
-    fontSize: 17,
-    color: C.text,
-    lineHeight: 24,
-  },
-  greetingSub: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 12,
-    color: C.textSub,
-    lineHeight: 18,
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  // ── Streak badge ──────────────────────────────────────────────────────────
-  streakBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: C.surface,
-    borderRadius: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    gap: 6,
-    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-  } as any,
-  streakFireImg: {
-    width: 24,
-    height: 24,
-  },
-  streakCount: {
-    fontFamily: "Poppins-Bold",
-    fontSize: 14,
-    color: C.text,
-    lineHeight: 18,
-  },
-  streakLabel: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 10,
-    color: C.textSub,
-    lineHeight: 13,
-  },
-
-  // ── Bell button ───────────────────────────────────────────────────────────
-  bellBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 14,
-    backgroundColor: C.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-  } as any,
-  bellDot: {
-    position: "absolute",
-    top: 9,
-    right: 9,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: C.gold,
-    borderWidth: 1.5,
-    borderColor: C.surface,
-  },
-
-  // ── Daily Goal Card ───────────────────────────────────────────────────────
-  goalCard: {
-    backgroundColor: C.surface,
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: C.border,
-    boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-    overflow: "hidden",
-  } as any,
-  goalLeft: {
-    flex: 1,
-    gap: 8,
-  },
-  goalLabel: {
-    fontFamily: "Poppins-SemiBold",
-    fontSize: 13,
-    color: C.green,
-    letterSpacing: 0.2,
-  },
-  goalXpRow: {
-    flexDirection: "row",
-    alignItems: "baseline",
-  },
-  goalXpBig: {
-    fontFamily: "Poppins-Bold",
-    fontSize: 40,
-    color: C.text,
-    lineHeight: 46,
-  },
-  goalXpOf: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 16,
-    color: C.textSub,
-  },
-  progressTrack: {
-    height: 10,
-    backgroundColor: "#EDE8E0",
-    borderRadius: 6,
-    overflow: "visible",
-    marginRight: 8,
-    position: "relative",
-  },
-  progressFill: {
-    height: "100%",
-    backgroundColor: C.green,
-    borderRadius: 6,
-  },
-  progressStar: {
-    position: "absolute",
-    top: -4,
-    marginLeft: -10,
-  },
-  goalSubRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  goalSubText: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 12,
-    color: C.gold,
-  },
-  treasureImg: {
-    width: 90,
-    height: 90,
-    marginLeft: 8,
-    marginRight: -8,
-  },
-
-  // ── Continue Learning Card ────────────────────────────────────────────────
-  continueCard: {
-    height: 200,
-    borderRadius: 20,
-    backgroundColor: C.green,
-    overflow: "hidden",
-    borderWidth: 1.5,
-    borderColor: "#D4A017",
-    position: "relative",
-  },
-  continueBgImg: {
-    position: "absolute",
-    right: -20,
-    bottom: -10,
-    width: "70%",
-    height: "130%",
-    opacity: 0.35,
-  },
-  continueOverlay: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: "65%",
-    // Gradient from opaque green to transparent right
-    backgroundColor: "transparent",
-  },
-  continueContent: {
-    padding: 22,
-    flex: 1,
-    justifyContent: "space-between",
-    gap: 4,
-  },
-  continueEyebrow: {
-    fontFamily: "Poppins-SemiBold",
-    fontSize: 12,
-    color: C.gold,
-    letterSpacing: 0.3,
-  },
-  continueLangName: {
-    fontFamily: "Poppins-Bold",
-    fontSize: 26,
-    color: "#FFFFFF",
-    lineHeight: 32,
-  },
-  continueMeta: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 13,
-    color: "rgba(255,255,255,0.8)",
-  },
-  continueBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#FFFFFF",
-    alignSelf: "flex-start",
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 50,
-    marginTop: 8,
-  },
-  continueBtnText: {
-    fontFamily: "Poppins-SemiBold",
-    fontSize: 14,
-    color: C.text,
-  },
-
-  // ── Section header ────────────────────────────────────────────────────────
-  sectionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontFamily: "Poppins-Bold",
-    fontSize: 17,
-    color: C.text,
-  },
-  viewAllBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-  viewAllText: {
-    fontFamily: "Poppins-SemiBold",
-    fontSize: 13,
-    color: C.green,
-  },
-
-  // ── Plan card ─────────────────────────────────────────────────────────────
-  planCard: {
-    backgroundColor: C.surface,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: C.border,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-  } as any,
-  planItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 16,
-    gap: 14,
-  },
-  planIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    borderCurve: "continuous",
-  } as any,
-  planItemText: {
-    flex: 1,
-  },
-  planItemTitle: {
-    fontFamily: "Poppins-SemiBold",
-    fontSize: 14,
-    color: C.text,
-    lineHeight: 20,
-  },
-  planItemSub: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 12,
-    color: C.textSub,
-    lineHeight: 18,
-  },
-  planCheck: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: "#D4D4D4",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  planDivider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: C.border,
-    marginLeft: 58,
-  },
-
-  // ── Next Up Banner ────────────────────────────────────────────────────────
-  nextUpCard: {
-    backgroundColor: "#EBF5EE",
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#C6E3CE",
-    overflow: "hidden",
-    boxShadow: "0 2px 8px rgba(27,107,58,0.08)",
-  } as any,
-  nextUpLeft: {
-    flex: 1,
-    gap: 3,
-  },
-  nextUpEyebrow: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 12,
-    color: C.green,
-  },
-  nextUpTitle: {
-    fontFamily: "Poppins-Bold",
-    fontSize: 20,
-    color: C.text,
-    lineHeight: 26,
-  },
-  nextUpSub: {
-    fontFamily: "Poppins-Regular",
-    fontSize: 13,
-    color: C.textSub,
-  },
-  nextUpRight: {
-    position: "relative",
-    width: 80,
-    height: 80,
-  },
-  nextUpPersonImg: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: C.surface,
-  },
-  nextUpCamBadge: {
-    position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: C.green,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: C.surface,
-  },
-
-  // ── Bottom spacer ─────────────────────────────────────────────────────────
-  bottomSpacer: {
-    height: 12,
-  },
-});

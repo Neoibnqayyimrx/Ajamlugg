@@ -9,24 +9,16 @@
  *  - Animated circle indicator slides smoothly between active tabs
  */
 
-import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs/types";
 import { Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useRef } from "react";
-import {
-  Animated,
-  LayoutChangeEvent,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Animated, LayoutChangeEvent, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const ACTIVE_BG = "#1B6B3A";
 const ACTIVE_ICON_COLOR = "#FFFFFF";
 const INACTIVE_ICON_COLOR = "#A0AEC0";
-const INACTIVE_LABEL_COLOR = "#A0AEC0";
 const CIRCLE_SIZE = 52;
 const TAB_BAR_HEIGHT = 68;
 
@@ -64,6 +56,13 @@ const TAB_CONFIG: Record<
   },
 };
 
+// Hidden screens (href: null) that should keep the tab bar visible with a
+// parent tab highlighted. Hidden screens NOT listed here (e.g. "languages")
+// hide the tab bar entirely.
+const PARENT_TAB: Record<string, string> = {
+  "audio-lesson": "learn",
+};
+
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function CustomTabBar({
   state,
@@ -71,7 +70,22 @@ export default function CustomTabBar({
   navigation,
 }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const activeIndex = state.index;
+
+  // Routes without a TAB_CONFIG entry (e.g. "languages", href: null) are
+  // hidden screens — they must not render a tab button. state.routes still
+  // contains them, so all index math below uses this filtered list.
+  const visibleRoutes = state.routes.filter(
+    (route) => TAB_CONFIG[route.name] !== undefined
+  );
+  const focusedRoute = state.routes[state.index];
+  // The tab to highlight: the focused route itself, or — for hidden screens
+  // like the audio lesson — the parent tab it belongs to.
+  const highlightName = TAB_CONFIG[focusedRoute.name]
+    ? focusedRoute.name
+    : PARENT_TAB[focusedRoute.name];
+  const activeIndex = visibleRoutes.findIndex(
+    (route) => route.name === highlightName
+  );
 
   // Use a ref (not state) to store tab center X positions.
   // Using state here would cause setState → re-render → onLayout → setState
@@ -79,13 +93,16 @@ export default function CustomTabBar({
   const tabCenters = useRef<number[]>([]);
   const measuredCount = useRef(0);
 
-  // Animated X position of the sliding circle
-  const circleX = useRef(new Animated.Value(-CIRCLE_SIZE)).current;
+  // Animated X position of the sliding circle.
+  // useState initializer (not useRef.current) — safe to read during render.
+  const [circleX] = useState(() => new Animated.Value(-CIRCLE_SIZE));
   const initialized = useRef(false);
 
-  // Derived: total tab count (stable between renders)
-  const tabCount = state.routes.length;
+  // Derived: total visible tab count (stable between renders)
+  const tabCount = visibleRoutes.length;
 
+  // Only depends on stable values (refs + circleX), so the callback identity
+  // never changes — keeps the useEffect below from re-firing every render.
   const animateToIndex = useCallback(
     (index: number) => {
       const center = tabCenters.current[index];
@@ -105,61 +122,74 @@ export default function CustomTabBar({
         mass: 0.7,
       }).start();
     },
-    // circleX is a stable Animated.Value ref — no deps needed
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [circleX]
   );
 
-  // Animate whenever the active tab index changes
+  // Animate whenever the active tab index changes.
+  // activeIndex is -1 while a hidden screen (languages) is focused — skip.
   useEffect(() => {
-    animateToIndex(activeIndex);
+    if (activeIndex >= 0) animateToIndex(activeIndex);
   }, [activeIndex, animateToIndex]);
 
-  const handleTabLayout = useCallback(
-    (index: number) => (e: LayoutChangeEvent) => {
-      const { x, width } = e.nativeEvent.layout;
-      const center = x + width / 2;
+  const handleTabLayout = (index: number) => (e: LayoutChangeEvent) => {
+    const { x, width } = e.nativeEvent.layout;
+    const center = x + width / 2;
 
-      // Only update if the value actually changed (avoids unnecessary work)
-      if (tabCenters.current[index] === center) return;
+    // Only update if the value actually changed (avoids unnecessary work)
+    if (tabCenters.current[index] === center) return;
 
-      tabCenters.current[index] = center;
-      measuredCount.current += 1;
+    tabCenters.current[index] = center;
+    measuredCount.current += 1;
 
-      // Once all tabs are measured, animate to the current active tab
-      if (measuredCount.current >= tabCount) {
-        animateToIndex(activeIndex);
-      }
-    },
-    [activeIndex, tabCount, animateToIndex]
-  );
+    // Once all tabs are measured, animate to the current active tab
+    if (measuredCount.current >= tabCount) {
+      animateToIndex(activeIndex);
+    }
+  };
 
   const bottomPad = Math.max(insets.bottom, 8);
   const totalHeight = TAB_BAR_HEIGHT + bottomPad;
 
+  // Hidden screens (like the language picker) should show no tab bar at all,
+  // matching their `tabBarStyle: { display: "none" }` option.
+  if (activeIndex === -1) return null;
+
   return (
     <View
-      style={[styles.container, { paddingBottom: bottomPad, height: totalHeight }]}
+      className="flex-row bg-white items-center border-t border-t-[#E8E0D8]"
+      style={{
+        paddingBottom: bottomPad,
+        height: totalHeight,
+        // boxShadow is not a NativeWind utility — keep inline for shadow
+        boxShadow: "0 -4px 16px rgba(0,0,0,0.07)",
+      } as any}
     >
       {/* ── Sliding circle ───────────────────────────────────────────────── */}
       {/* Always rendered; starts offscreen (-CIRCLE_SIZE) and animates into
           position once the first onLayout fires for all tabs               */}
       <Animated.View
         pointerEvents="none"
-        style={[
-          styles.slidingCircle,
-          {
-            transform: [{ translateX: circleX }],
-            top: (TAB_BAR_HEIGHT - CIRCLE_SIZE) / 2,
-          },
-        ]}
+        style={{
+          position: "absolute",
+          width: CIRCLE_SIZE,
+          height: CIRCLE_SIZE,
+          borderRadius: CIRCLE_SIZE / 2,
+          backgroundColor: ACTIVE_BG,
+          left: 0,
+          zIndex: 0,
+          transform: [{ translateX: circleX }],
+          top: (TAB_BAR_HEIGHT - CIRCLE_SIZE) / 2,
+        }}
       />
 
       {/* ── Tab buttons ──────────────────────────────────────────────────── */}
-      {state.routes.map((route, index) => {
+      {visibleRoutes.map((route, index) => {
         const { options } = descriptors[route.key];
-        const isFocused = state.index === index;
-        const cfg = TAB_CONFIG[route.name] ?? TAB_CONFIG["index"];
+        const isFocused = route.key === focusedRoute.key;
+        // Visual active state — also true when a child screen of this tab
+        // (e.g. audio-lesson under Learn) is the focused route.
+        const isHighlighted = index === activeIndex;
+        const cfg = TAB_CONFIG[route.name];
 
         const onPress = () => {
           const event = navigation.emit({
@@ -182,30 +212,26 @@ export default function CustomTabBar({
             onLayout={handleTabLayout(index)}
             onPress={onPress}
             onLongPress={onLongPress}
-            style={styles.tabButton}
+            className="flex-1 items-center justify-center"
+            style={{ height: TAB_BAR_HEIGHT, zIndex: 1 }}
             accessibilityRole="button"
-            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityState={isHighlighted ? { selected: true } : {}}
             accessibilityLabel={options.tabBarAccessibilityLabel ?? cfg.label}
           >
-            {isFocused ? (
+            {isHighlighted ? (
               /* Active state: just the icon (circle drawn by sliding overlay) */
-              <View style={styles.activeIconWrapper}>
-                <Ionicons
-                  name={cfg.active}
-                  size={24}
-                  color={ACTIVE_ICON_COLOR}
-                />
+              <View
+                className="items-center justify-center bg-transparent"
+                style={{ width: CIRCLE_SIZE, height: CIRCLE_SIZE, borderRadius: CIRCLE_SIZE / 2 }}
+              >
+                <Ionicons name={cfg.active} size={24} color={ACTIVE_ICON_COLOR} />
               </View>
             ) : (
               /* Inactive state: outline icon + label */
-              <View style={styles.inactiveWrapper}>
-                <Ionicons
-                  name={cfg.inactive}
-                  size={24}
-                  color={INACTIVE_ICON_COLOR}
-                />
+              <View className="items-center justify-center gap-[3px]">
+                <Ionicons name={cfg.inactive} size={24} color={INACTIVE_ICON_COLOR} />
                 <Text
-                  style={styles.label}
+                  className="text-[10px] text-[#A0AEC0] font-[Poppins-Regular] text-center"
                   numberOfLines={1}
                   allowFontScaling={false}
                 >
@@ -219,52 +245,3 @@ export default function CustomTabBar({
     </View>
   );
 }
-
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: "#E8E0D8",
-    alignItems: "center",
-    // Modern shadow
-    boxShadow: "0 -4px 16px rgba(0,0,0,0.07)",
-  } as any,
-  slidingCircle: {
-    position: "absolute",
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
-    borderRadius: CIRCLE_SIZE / 2,
-    backgroundColor: ACTIVE_BG,
-    left: 0,
-    zIndex: 0,
-  },
-  tabButton: {
-    flex: 1,
-    height: TAB_BAR_HEIGHT,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  activeIconWrapper: {
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
-    borderRadius: CIRCLE_SIZE / 2,
-    backgroundColor: "transparent", // sliding circle handles background
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  inactiveWrapper: {
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
-  },
-  label: {
-    fontSize: 10,
-    color: INACTIVE_LABEL_COLOR,
-    fontFamily: "Poppins-Regular",
-    textAlign: "center",
-  },
-});

@@ -80,13 +80,17 @@ module.exports = {
       },
 
       // ─── Typography ───────────────────────────────────────────────
+      // Family names MUST match the keys passed to useFonts() in
+      // src/app/_layout.tsx — otherwise RN silently falls back to the
+      // system font.
       fontFamily: {
-        poppins:         ["Poppins_400Regular", "sans-serif"],
-        "poppins-medium": ["Poppins_500Medium", "sans-serif"],
-        "poppins-semi":  ["Poppins_600SemiBold", "sans-serif"],
-        "poppins-bold":  ["Poppins_700Bold", "sans-serif"],
-        "noto-arabic":   ["NotoSansArabic_400Regular", "sans-serif"],
-        "noto-arabic-bold": ["NotoSansArabic_700Bold", "sans-serif"],
+        poppins:            ["Poppins-Regular", "sans-serif"],
+        "poppins-regular":  ["Poppins-Regular", "sans-serif"],
+        "poppins-medium":   ["Poppins-Medium", "sans-serif"],
+        "poppins-semi":     ["Poppins-SemiBold", "sans-serif"],
+        "poppins-semibold": ["Poppins-SemiBold", "sans-serif"],
+        "poppins-bold":     ["Poppins-Bold", "sans-serif"],
+        "noto-arabic":      ["NotoSansArabic-Regular", "sans-serif"],
       },
 
       fontSize: {

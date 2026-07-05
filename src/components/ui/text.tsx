@@ -11,7 +11,7 @@
  */
 
 import React from "react";
-import { Text as RNText, TextProps as RNTextProps, StyleSheet } from "react-native";
+import { Text as RNText, TextProps as RNTextProps } from "react-native";
 import { typeScale, ajamTypeScale, fontFamily } from "@/constants/typography";
 import { palette } from "@/constants/colors";
 
@@ -72,12 +72,13 @@ export function Text({
 }
 
 // ─── Convenience sub-components ────────────────────────────────────────────
-Text.H1 = (props: Omit<TextProps, "variant">) => <Text variant="h1" {...props} />;
-Text.H2 = (props: Omit<TextProps, "variant">) => <Text variant="h2" {...props} />;
-Text.H3 = (props: Omit<TextProps, "variant">) => <Text variant="h3" {...props} />;
-Text.H4 = (props: Omit<TextProps, "variant">) => <Text variant="h4" {...props} />;
-Text.BodyLg = (props: Omit<TextProps, "variant">) => <Text variant="bodyLg" {...props} />;
-Text.BodyMd = (props: Omit<TextProps, "variant">) => <Text variant="bodyMd" {...props} />;
-Text.BodySm = (props: Omit<TextProps, "variant">) => <Text variant="bodySm" {...props} />;
-Text.Caption = (props: Omit<TextProps, "variant">) => <Text variant="caption" {...props} />;
-Text.Arabic = (props: Omit<TextProps, "arabic">) => <Text arabic {...props} />;
+// Named function expressions so each component has a display name in DevTools.
+Text.H1 = function TextH1(props: Omit<TextProps, "variant">) { return <Text variant="h1" {...props} />; };
+Text.H2 = function TextH2(props: Omit<TextProps, "variant">) { return <Text variant="h2" {...props} />; };
+Text.H3 = function TextH3(props: Omit<TextProps, "variant">) { return <Text variant="h3" {...props} />; };
+Text.H4 = function TextH4(props: Omit<TextProps, "variant">) { return <Text variant="h4" {...props} />; };
+Text.BodyLg = function TextBodyLg(props: Omit<TextProps, "variant">) { return <Text variant="bodyLg" {...props} />; };
+Text.BodyMd = function TextBodyMd(props: Omit<TextProps, "variant">) { return <Text variant="bodyMd" {...props} />; };
+Text.BodySm = function TextBodySm(props: Omit<TextProps, "variant">) { return <Text variant="bodySm" {...props} />; };
+Text.Caption = function TextCaption(props: Omit<TextProps, "variant">) { return <Text variant="caption" {...props} />; };
+Text.Arabic = function TextArabic(props: Omit<TextProps, "arabic">) { return <Text arabic {...props} />; };

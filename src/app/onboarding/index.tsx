@@ -3,7 +3,6 @@ import { router } from "expo-router";
 import {
   Image,
   StatusBar,
-  StyleSheet,
   Text,
   TouchableOpacity,
   View,
@@ -12,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function OnboardingScreen() {
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF6EF", paddingHorizontal: 24 }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FAF6EF" />
 
       {/* ── Header ── */}
@@ -48,8 +47,7 @@ export default function OnboardingScreen() {
       <View className="flex-1 flex-row items-end justify-center relative">
         {/* Left bubble */}
         <View
-          className="absolute left-0 top-16 z-10 rounded-2xl px-3 py-2 min-w-[90px] max-w-[130px]"
-          style={{ backgroundColor: "#E6F4EC" }}
+          className="absolute left-0 top-16 z-10 rounded-2xl px-3 py-2 min-w-[90px] max-w-[130px] bg-[#E6F4EC]"
         >
           <Text className="font-[NotoSansArabic-Regular] text-[18px] text-[#0F172A] leading-7 text-right">
             سَنُّو
@@ -68,8 +66,7 @@ export default function OnboardingScreen() {
         {/* Right bubbles */}
         <View className="absolute right-0 top-10 z-10 gap-y-2">
           <View
-            className="rounded-2xl px-3 py-2 min-w-[90px] max-w-[130px]"
-            style={{ backgroundColor: "#EAF4FB" }}
+            className="rounded-2xl px-3 py-2 min-w-[90px] max-w-[130px] bg-[#EAF4FB]"
           >
             <Text className="font-[NotoSansArabic-Regular] text-[18px] text-[#0F172A] leading-7 text-right">
               طَنْ اَلْبَرْكَه
@@ -80,8 +77,7 @@ export default function OnboardingScreen() {
           </View>
 
           <View
-            className="rounded-2xl px-3 py-2 min-w-[90px] max-w-[130px] mt-16"
-            style={{ backgroundColor: "#F5F0E4" }}
+            className="rounded-2xl px-3 py-2 min-w-[90px] max-w-[130px] mt-16 bg-[#F5F0E4]"
           >
             <Text className="font-[NotoSansArabic-Regular] text-[18px] text-[#0F172A] leading-7 text-right">
               يَايَا كَكِي؟
@@ -114,10 +110,4 @@ export default function OnboardingScreen() {
 }
 
 // SafeAreaView needs StyleSheet — NativeWind className doesn't apply to it
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#FAF6EF",
-    paddingHorizontal: 24,
-  },
-});
+

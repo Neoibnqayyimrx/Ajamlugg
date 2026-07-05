@@ -45,13 +45,11 @@ export default function SignInScreen() {
   };
 
   return (
-    <>
+    <KeyboardAvoidingView
+      className="flex-1 bg-[#FAF6F0]"
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
       <StatusBar barStyle="dark-content" />
-
-      <KeyboardAvoidingView
-        className="flex-1 bg-[#FAF6F0]"
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled"
@@ -151,13 +149,12 @@ export default function SignInScreen() {
 
           {/* Footer */}
           <View className="flex-row justify-center mt-8 mb-10">
-            <Text className="text-sm text-[#6B7280]">Don't have an account? </Text>
+            <Text className="text-sm text-[#6B7280]">Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={() => router.push("/(auth)/sign-up")}>
               <Text className="text-sm text-[#1E6B4A] font-semibold">Sign up</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
-    </>
+    </KeyboardAvoidingView>
   );
 }
