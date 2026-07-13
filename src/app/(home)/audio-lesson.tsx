@@ -4,11 +4,13 @@
  * AI Teacher — Audio Lesson screen (07-audio-lesson-screen design).
  *
  * Opened from the Learn screen with a `lessonId` param. This is an
- * AUDIO-ONLY experience — there is no video calling. The big "teacher"
- * area is a visual preview/placeholder, and the controls focus on the
- * audio session: mic, subtitles, end call, plus the lesson feedback card.
+ * AUDIO-ONLY experience — camera stays off for the whole session. The
+ * learner explicitly starts the session; once joined, mic mute/unmute and
+ * end-call are backed by a real Stream Video audio call (see
+ * hooks/useAudioLessonCall.ts), scoped to the signed-in Clerk user, the
+ * selected language, and the selected lesson.
  *
- * Everything shown is driven by the hardcoded learning data:
+ * Everything else is still driven by the hardcoded learning data:
  *   - language        → LANGUAGES (via the lesson's unit)
  *   - title / goals   → LESSONS
  *   - phrases         → vocabulary embedded in the lesson's activities
@@ -21,9 +23,14 @@
 
 import { useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  StreamCall,
+  StreamVideo,
+  useCallStateHooks,
+} from "@stream-io/video-react-native-sdk";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -31,6 +38,7 @@ import images from "@/constants/images";
 import { LANGUAGES } from "@/data/languages";
 import { LESSONS } from "@/data/lessons";
 import { UNITS } from "@/data/units";
+import { AudioLessonCallStatus, useAudioLessonCall } from "@/hooks/useAudioLessonCall";
 import { Lesson, Vocabulary } from "@/types/learning";
 
 // ─── Palette (matches home + learn screens) ───────────────────────────────────
@@ -47,6 +55,7 @@ const C = {
   border: "#EDE8E0",
   endRed: "#D95040",
   muted: "#9CA3AF",
+  amber: "#D97706",
 };
 
 // ─── Mock session feedback ─────────────────────────────────────────────────────
@@ -96,9 +105,33 @@ function formatElapsed(totalSeconds: number) {
   return `${m}:${s}`;
 }
 
+function statusMeta(status: AudioLessonCallStatus) {
+  switch (status) {
+    case "joined":
+      return { label: "Live", dot: "#22C55E" };
+    case "connecting":
+      return { label: "Connecting…", dot: C.amber };
+    case "joining":
+      return { label: "Joining…", dot: C.amber };
+    case "error":
+      return { label: "Connection error", dot: C.endRed };
+    case "ended":
+      return { label: "Call ended", dot: C.muted };
+    default:
+      return { label: "Ready", dot: C.muted };
+  }
+}
+
 // ─── Header ────────────────────────────────────────────────────────────────────
 
-function SessionHeader({ onBack }: { onBack: () => void }) {
+function SessionHeader({
+  onBack,
+  status,
+}: {
+  onBack: () => void;
+  status: AudioLessonCallStatus;
+}) {
+  const meta = statusMeta(status);
   return (
     <View className="flex-row items-center px-5 pt-2 gap-2">
       <Pressable onPress={onBack} className="w-10 h-10 items-center justify-center -ml-2.5">
@@ -108,8 +141,8 @@ function SessionHeader({ onBack }: { onBack: () => void }) {
       <View className="flex-1">
         <Text className="font-poppins-bold text-[26px] text-[#1B6B3A]">AI Teacher</Text>
         <View className="flex-row items-center gap-1.5">
-          <View className="w-2 h-2 rounded-full bg-[#22C55E]" />
-          <Text className="font-poppins-regular text-[13px] text-[#6B7280]">Online</Text>
+          <View className="w-2 h-2 rounded-full" style={{ backgroundColor: meta.dot }} />
+          <Text className="font-poppins-regular text-[13px] text-[#6B7280]">{meta.label}</Text>
         </View>
       </View>
 
@@ -128,7 +161,35 @@ function SessionHeader({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ─── Teacher preview card ──────────────────────────────────────────────────────
+// ─── Learner avatar tile (shared by the pre-call and live stages) ─────────────
+
+function LearnerTile({
+  avatarUrl,
+  userName,
+  micBadge,
+}: {
+  avatarUrl?: string | null;
+  userName: string;
+  micBadge?: React.ReactNode;
+}) {
+  return (
+    <View className="absolute top-3 right-3 w-[92px] h-[116px] rounded-2xl overflow-hidden border-2 border-[#FFFFFF] bg-[#E8F5EE]">
+      <Image
+        source={avatarUrl ? { uri: avatarUrl } : images.mascotLogo}
+        className="w-full h-full"
+        resizeMode="cover"
+      />
+      <View className="absolute bottom-0 left-0 right-0 bg-[#1A1A1A]/60 px-1.5 py-1">
+        <Text className="font-poppins-semibold text-[10px] text-[#FFFFFF]" numberOfLines={1}>
+          {userName}
+        </Text>
+      </View>
+      {micBadge}
+    </View>
+  );
+}
+
+// ─── Teacher preview card (live session) ───────────────────────────────────────
 // Visual placeholder only (no video): warm artwork backdrop, the mascot as
 // the teacher, the learner's avatar tile, and the teacher response bubble.
 
@@ -137,6 +198,7 @@ function TeacherStage({
   elapsed,
   micOn,
   avatarUrl,
+  userName,
   line,
   subtitlesOn,
   onAdvance,
@@ -145,6 +207,7 @@ function TeacherStage({
   elapsed: string;
   micOn: boolean;
   avatarUrl?: string | null;
+  userName: string;
   line: TeacherLine;
   subtitlesOn: boolean;
   onAdvance: () => void;
@@ -176,17 +239,16 @@ function TeacherStage({
         </View>
       </View>
 
-      {/* Top-right: learner tile (avatar placeholder — audio only, no camera) */}
-      <View className="absolute top-3 right-3 w-[92px] h-[116px] rounded-2xl overflow-hidden border-2 border-[#FFFFFF] bg-[#E8F5EE]">
-        <Image
-          source={avatarUrl ? { uri: avatarUrl } : images.mascotLogo}
-          className="w-full h-full"
-          resizeMode="cover"
-        />
-        <View className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-[#1B6B3A] items-center justify-center border border-[#FFFFFF]">
-          <Ionicons name={micOn ? "mic" : "mic-off"} size={13} color="#FFFFFF" />
-        </View>
-      </View>
+      {/* Top-right: learner tile (avatar + name — audio only, no camera) */}
+      <LearnerTile
+        avatarUrl={avatarUrl}
+        userName={userName}
+        micBadge={
+          <View className="absolute bottom-1.5 right-1.5 w-6 h-6 rounded-full bg-[#1B6B3A] items-center justify-center border border-[#FFFFFF]">
+            <Ionicons name={micOn ? "mic" : "mic-off"} size={13} color="#FFFFFF" />
+          </View>
+        }
+      />
 
       {/* Teacher response bubble — tap to hear the next line */}
       <Pressable
@@ -208,6 +270,129 @@ function TeacherStage({
         </View>
         <Ionicons name="volume-high" size={24} color={C.green} />
       </Pressable>
+    </View>
+  );
+}
+
+// ─── Pre-call / connecting / error / ended stage ───────────────────────────────
+
+function PreCallStage({
+  status,
+  errorMessage,
+  lessonLabel,
+  avatarUrl,
+  userName,
+  onStart,
+  onBack,
+}: {
+  status: AudioLessonCallStatus;
+  errorMessage?: string;
+  lessonLabel: string;
+  avatarUrl?: string | null;
+  userName: string;
+  onStart: () => void;
+  onBack: () => void;
+}) {
+  const busy = status === "connecting" || status === "joining";
+
+  return (
+    <View className="mx-5 mt-3 h-[420px] rounded-3xl overflow-hidden bg-[#EADFC8]">
+      <Image source={images.palace} className="absolute w-full h-full" resizeMode="cover" />
+      <Image
+        source={images.mascotWelcome}
+        className="absolute bottom-0 self-center w-[240px] h-[280px]"
+        resizeMode="contain"
+      />
+
+      <View className="absolute top-3 left-3 gap-1.5 max-w-[60%]">
+        <View className="bg-[#1A1A1A]/60 rounded-full px-3 py-1.5 self-start">
+          <Text className="font-poppins-semibold text-[11px] text-[#FFFFFF]" numberOfLines={1}>
+            {lessonLabel}
+          </Text>
+        </View>
+      </View>
+
+      <LearnerTile avatarUrl={avatarUrl} userName={userName} />
+
+      <View className="absolute bottom-4 left-4 right-4 bg-[#FFFFFF] rounded-2xl px-4 py-4 gap-3">
+        {status === "error" ? (
+          <>
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="alert-circle" size={20} color={C.endRed} />
+              <Text className="flex-1 font-poppins-bold text-[15px] text-[#1A1A1A]">
+                Couldn&rsquo;t connect
+              </Text>
+            </View>
+            <Text className="font-poppins-regular text-[12px] leading-[18px] text-[#6B7280]">
+              {errorMessage ?? "Something went wrong reaching your AI teacher."}
+            </Text>
+            <Pressable onPress={onStart} className="bg-[#1B6B3A] rounded-full py-3 items-center">
+              <Text className="font-poppins-semibold text-[#FFFFFF] text-[14px]">Try again</Text>
+            </Pressable>
+          </>
+        ) : status === "ended" ? (
+          <>
+            <View className="flex-row items-center gap-2">
+              <Ionicons name="checkmark-circle" size={20} color={C.green} />
+              <Text className="flex-1 font-poppins-bold text-[15px] text-[#1A1A1A]">
+                Session ended
+              </Text>
+            </View>
+            <Text className="font-poppins-regular text-[12px] leading-[18px] text-[#6B7280]">
+              Nice work! Your progress for this lesson is below.
+            </Text>
+            <View className="flex-row gap-2">
+              <Pressable
+                onPress={onStart}
+                className="flex-1 bg-[#E8F5EE] rounded-full py-3 items-center"
+              >
+                <Text className="font-poppins-semibold text-[#1B6B3A] text-[14px]">
+                  Restart lesson
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={onBack}
+                className="flex-1 bg-[#1B6B3A] rounded-full py-3 items-center"
+              >
+                <Text className="font-poppins-semibold text-[#FFFFFF] text-[14px]">
+                  Back to lessons
+                </Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text className="font-poppins-bold text-[16px] text-[#1A1A1A]">
+              {busy
+                ? status === "connecting"
+                  ? "Connecting…"
+                  : "Joining call…"
+                : "Ready when you are"}
+            </Text>
+            <Text className="font-poppins-regular text-[12px] leading-[18px] text-[#6B7280]">
+              {busy
+                ? "Setting up your audio session with the AI teacher."
+                : "Start an audio-only session — your teacher will guide you through this lesson out loud."}
+            </Text>
+            <Pressable
+              onPress={onStart}
+              disabled={busy}
+              className={`rounded-full py-3.5 items-center flex-row justify-center gap-2 ${
+                busy ? "bg-[#9CA3AF]" : "bg-[#1B6B3A]"
+              }`}
+            >
+              {busy ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Ionicons name="mic" size={18} color="#FFFFFF" />
+              )}
+              <Text className="font-poppins-semibold text-[#FFFFFF] text-[15px]">
+                {busy ? "Please wait" : "Start lesson call"}
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </View>
     </View>
   );
 }
@@ -249,6 +434,75 @@ function ControlButton({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+// ─── Live call body (mounted inside <StreamCall> once joined) ─────────────────
+// The only place that reads reactive Stream call state (mic status) — the
+// hook that owns the `Call` instance stays outside React's provider tree.
+
+function LiveLessonBody({
+  lessonLabel,
+  avatarUrl,
+  userName,
+  line,
+  subtitlesOn,
+  onAdvance,
+  onToggleSubtitles,
+  onToggleMic,
+  onEndCall,
+}: {
+  lessonLabel: string;
+  avatarUrl?: string | null;
+  userName: string;
+  line: TeacherLine;
+  subtitlesOn: boolean;
+  onAdvance: () => void;
+  onToggleSubtitles: () => void;
+  onToggleMic: () => void;
+  onEndCall: () => void;
+}) {
+  const { useMicrophoneState } = useCallStateHooks();
+  const { status: micStatus } = useMicrophoneState();
+  const micOn = micStatus === "enabled";
+
+  // Session clock — starts once the call is actually joined.
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <>
+      <TeacherStage
+        lessonLabel={lessonLabel}
+        elapsed={formatElapsed(seconds)}
+        micOn={micOn}
+        avatarUrl={avatarUrl}
+        userName={userName}
+        line={line}
+        subtitlesOn={subtitlesOn}
+        onAdvance={onAdvance}
+      />
+
+      <View className="flex-row justify-center gap-2 mt-5 px-5">
+        <ControlButton icon="videocam-off" label="Camera" disabled />
+        <ControlButton
+          icon={micOn ? "mic" : "mic-off"}
+          label={micOn ? "Mic" : "Muted"}
+          active={micOn}
+          onPress={onToggleMic}
+        />
+        <ControlButton
+          icon="chatbox-ellipses-outline"
+          label="Subtitles"
+          active={subtitlesOn}
+          onPress={onToggleSubtitles}
+        />
+        <ControlButton icon="call" label="End Call" danger onPress={onEndCall} />
+      </View>
+    </>
   );
 }
 
@@ -382,15 +636,17 @@ export default function AudioLessonScreen() {
   );
 
   const [lineIndex, setLineIndex] = useState(0);
-  const [micOn, setMicOn] = useState(true);
   const [subtitlesOn, setSubtitlesOn] = useState(true);
-  const [seconds, setSeconds] = useState(0);
 
-  // Session clock — starts when the screen mounts
-  useEffect(() => {
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const userName = user?.fullName || user?.username || "You";
+
+  const callSession = useAudioLessonCall({
+    lessonId: lesson?.id ?? "",
+    languageId: language?.id ?? "",
+    lessonTitle: lesson?.title ?? "",
+    userName,
+    userImage: user?.imageUrl,
+  });
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -420,41 +676,49 @@ export default function AudioLessonScreen() {
   // Loop back to the start after the closing line — lets learners replay
   const advanceLine = () => setLineIndex((i) => (i + 1) % script.length);
 
+  const startCall = () => {
+    setLineIndex(0);
+    callSession.start();
+  };
+
+  const lessonLabel = `${language.name} · ${lesson.title}`;
+  const isLive = callSession.status === "joined" && callSession.client && callSession.call;
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <SessionHeader onBack={goBack} />
+        <SessionHeader onBack={goBack} status={callSession.status} />
 
-        <TeacherStage
-          lessonLabel={`${language.name} · ${lesson.title}`}
-          elapsed={formatElapsed(seconds)}
-          micOn={micOn}
-          avatarUrl={user?.imageUrl}
-          line={script[lineIndex]}
-          subtitlesOn={subtitlesOn}
-          onAdvance={advanceLine}
-        />
-
-        {/* Audio session controls (camera is a disabled placeholder) */}
-        <View className="flex-row justify-center gap-2 mt-5 px-5">
-          <ControlButton icon="videocam-off" label="Camera" disabled />
-          <ControlButton
-            icon={micOn ? "mic" : "mic-off"}
-            label={micOn ? "Mic" : "Muted"}
-            active={micOn}
-            onPress={() => setMicOn((v) => !v)}
+        {isLive ? (
+          <StreamVideo client={callSession.client!}>
+            <StreamCall call={callSession.call!}>
+              <LiveLessonBody
+                lessonLabel={lessonLabel}
+                avatarUrl={user?.imageUrl}
+                userName={userName}
+                line={script[lineIndex]}
+                subtitlesOn={subtitlesOn}
+                onAdvance={advanceLine}
+                onToggleSubtitles={() => setSubtitlesOn((v) => !v)}
+                onToggleMic={callSession.toggleMic}
+                onEndCall={callSession.endCall}
+              />
+            </StreamCall>
+          </StreamVideo>
+        ) : (
+          <PreCallStage
+            status={callSession.status}
+            errorMessage={callSession.errorMessage}
+            lessonLabel={lessonLabel}
+            avatarUrl={user?.imageUrl}
+            userName={userName}
+            onStart={startCall}
+            onBack={goBack}
           />
-          <ControlButton
-            icon="chatbox-ellipses-outline"
-            label="Subtitles"
-            active={subtitlesOn}
-            onPress={() => setSubtitlesOn((v) => !v)}
-          />
-          <ControlButton icon="call" label="End Call" danger onPress={goBack} />
-        </View>
+        )}
 
         <SessionFeedbackCard />
 

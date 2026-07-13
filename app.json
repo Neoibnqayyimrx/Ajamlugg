@@ -22,10 +22,15 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.Ajamlugg"
+      "package": "com.Ajamlugg",
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
-      "output": "static",
+      "output": "server",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -42,7 +47,18 @@
       ],
       "expo-font",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "@stream-io/video-react-native-sdk",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "microphonePermission": "$(PRODUCT_NAME) needs microphone access so your AI teacher can hear you during audio lessons."
+        }
+      ],
+      [
+        "expo-build-properties",
+        { "android": { "minSdkVersion": 24 } }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
