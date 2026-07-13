@@ -18,7 +18,8 @@
     "preview-ios-sim": {
       "ios": {
         "simulator": true
-      }
+      },
+      "node": "25.2.1"
     },
     "production": {
       "autoIncrement": true
