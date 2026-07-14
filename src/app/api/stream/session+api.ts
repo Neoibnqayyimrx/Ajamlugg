@@ -16,9 +16,36 @@ import { StreamClient } from "@stream-io/node-sdk";
 const STREAM_API_KEY = process.env.STREAM_API_KEY;
 const STREAM_API_SECRET = process.env.STREAM_API_SECRET;
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
+const VISION_AGENT_URL = process.env.VISION_AGENT_URL;
 
 const TOKEN_VALIDITY_SECONDS = 60 * 60 * 4; // ~4h, SDK refreshes via tokenProvider
 const CALL_TYPE = "default";
+
+/**
+ * Has the Ajami teacher (vision-agent/, Gemini Live) join the call as a
+ * second participant. Best-effort: the learner can still have their audio
+ * lesson call without the AI teacher, so a failure here is logged, not
+ * thrown — the client isn't blocked on it.
+ */
+async function requestTeacherJoin(callId: string): Promise<void> {
+  if (!VISION_AGENT_URL) return;
+
+  try {
+    const response = await fetch(`${VISION_AGENT_URL}/calls/${callId}/sessions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ call_type: CALL_TYPE }),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) {
+      console.error(
+        `vision-agent session-start failed for call ${callId}: ${response.status}`
+      );
+    }
+  } catch (err) {
+    console.error(`Failed to reach vision-agent for call ${callId}`, err);
+  }
+}
 
 async function resolveUserId(request: Request): Promise<string | null> {
   const authHeader = request.headers.get("authorization");
@@ -77,6 +104,8 @@ export async function POST(request: Request) {
     console.error("Stream call reservation failed", err);
     return Response.json({ error: "Failed to reserve the lesson call" }, { status: 502 });
   }
+
+  await requestTeacherJoin(callId);
 
   return Response.json({
     apiKey: STREAM_API_KEY,

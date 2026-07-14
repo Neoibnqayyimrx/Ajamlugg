@@ -15,8 +15,19 @@
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { LanguageId } from "@/types/learning";
+
+// react-native sets `global.window = global`, so this is true on native and
+// in the browser — it's only ever undefined during Node-side SSR rendering
+// (e.g. `expo start` with web.output "server"). AsyncStorage's web backend
+// touches `window` on load, which crashes if evaluated there, so we swap in
+// a no-op storage for that environment only.
+const noopStorage: StateStorage = {
+  getItem: async () => null,
+  setItem: async () => {},
+  removeItem: async () => {},
+};
 
 // ─── State & Actions ──────────────────────────────────────────────────────────
 
@@ -51,7 +62,9 @@ export const useLanguageStore = create<LanguageState>()(
     }),
     {
       name: "ajamlugg-language",                        // AsyncStorage key
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() =>
+        typeof window === "undefined" ? noopStorage : AsyncStorage
+      ),
 
       // Only persist the user's choice — isHydrated is a runtime-only flag
       // and must never be written to (or restored from) AsyncStorage.
