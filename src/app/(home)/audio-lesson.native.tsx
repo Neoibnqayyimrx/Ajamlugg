@@ -34,6 +34,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   StreamCall,
   StreamVideo,
+  useCall,
   useCallStateHooks,
 } from "@stream-io/video-react-native-sdk";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -42,6 +43,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "rea
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { Text as AjamiText } from "@/components/ui/text";
 import images from "@/constants/images";
 import { LANGUAGES } from "@/data/languages";
 import { LESSONS } from "@/data/lessons";
@@ -445,6 +447,66 @@ function ControlButton({
   );
 }
 
+// ─── Ajami display card (AI teacher's on-screen display tool) ─────────────────
+// Rendered when the teacher calls its `display_on_screen` tool (see
+// vision-agent/agent.py) and the app receives a Stream custom call event of
+// type "ajami_display" (call.on("custom", ...)). A new event always replaces
+// whatever card is currently shown.
+
+interface AjamiDisplayPayload {
+  type: "ajami_display";
+  latin: string;
+  ajami: string;
+  note?: string;
+}
+
+function isAjamiDisplayPayload(data: unknown): data is AjamiDisplayPayload {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return d.type === "ajami_display" && typeof d.latin === "string" && typeof d.ajami === "string";
+}
+
+function AjamiDisplayCard({
+  payload,
+  onDismiss,
+}: {
+  payload: AjamiDisplayPayload;
+  onDismiss: () => void;
+}) {
+  return (
+    <View className="mx-5 mt-3 bg-[#FFFFFF] rounded-2xl border border-[#EDE8E0] px-5 py-4 gap-1.5">
+      <View className="flex-row items-start justify-between gap-2">
+        {/*
+         * v1 trusts the Ajami spelling the model provides in the tool call.
+         * TODO: once the lessonId is threaded through to this event, resolve
+         * against the lesson's canonical vocabulary
+         * (lesson.activities[].vocabulary.ajami) instead of the model's own
+         * spelling, falling back to the model's text only when no vocabulary
+         * match exists.
+         */}
+        <AjamiText arabic variant="h2" style={{ flex: 1 }}>
+          {payload.ajami}
+        </AjamiText>
+        <Pressable
+          onPress={onDismiss}
+          hitSlop={8}
+          className="w-8 h-8 items-center justify-center -mt-1 -mr-1"
+        >
+          <Ionicons name="close" size={20} color={C.muted} />
+        </Pressable>
+      </View>
+      <AjamiText variant="h4" color={C.text}>
+        {payload.latin}
+      </AjamiText>
+      {payload.note ? (
+        <AjamiText variant="bodySm" color={C.textSub}>
+          {payload.note}
+        </AjamiText>
+      ) : null}
+    </View>
+  );
+}
+
 // ─── Live call body (mounted inside <StreamCall> once joined) ─────────────────
 // The only place that reads reactive Stream call state (mic status) — the
 // hook that owns the `Call` instance stays outside React's provider tree.
@@ -481,6 +543,19 @@ function LiveLessonBody({
     return () => clearInterval(timer);
   }, []);
 
+  // AI teacher's on-screen display tool — a new event always replaces
+  // whatever is currently shown.
+  const call = useCall();
+  const [displayPayload, setDisplayPayload] = useState<AjamiDisplayPayload | null>(null);
+  useEffect(() => {
+    if (!call) return;
+    return call.on("custom", (event) => {
+      if (isAjamiDisplayPayload(event.custom)) {
+        setDisplayPayload(event.custom);
+      }
+    });
+  }, [call]);
+
   return (
     <>
       <TeacherStage
@@ -493,6 +568,13 @@ function LiveLessonBody({
         subtitlesOn={subtitlesOn}
         onAdvance={onAdvance}
       />
+
+      {displayPayload && (
+        <AjamiDisplayCard
+          payload={displayPayload}
+          onDismiss={() => setDisplayPayload(null)}
+        />
+      )}
 
       <View className="flex-row justify-center gap-2 mt-5 px-5">
         <ControlButton icon="videocam-off" label="Camera" disabled />

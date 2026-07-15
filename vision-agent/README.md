@@ -44,6 +44,44 @@ How it plugs into the app:
    uv run pytest
    ```
 
+## Session duration limit (Gemini Live free tier)
+
+Gemini Live sessions on the free tier are time-limited (observed ~10 minutes
+in practice). Shortly before the limit, the server sends a `GoAway` frame
+with the remaining time, then force-closes the websocket (close code 1008)
+regardless of whether the conversation is mid-sentence.
+
+The installed `vision-agents` Gemini plugin (`vision_agents.plugins.gemini`)
+does not currently support this end-to-end:
+
+- It never enables `session_resumption` in its default Live config, so the
+  server never sends the resumption handles needed to reconnect and continue
+  the same logical session.
+- Even if resumption were enabled, the plugin only captures
+  `session_resumption_update` when it arrives alongside a `model_turn`
+  message — resumption updates that arrive on their own (the common case)
+  are silently dropped.
+- It has no hook for `GoAway` at all; the frame is logged at debug level and
+  ignored, so the lesson just dies with an unhandled `ConnectionClosedError`
+  once the hard close (1008) hits `process_audio_input`.
+
+Since transparent resumption isn't cleanly supported by the installed SDK
+version, `agent.py` implements the fallback strategy instead:
+
+- `_GoAwayAwareRealtime` (a thin subclass of `gemini.Realtime`) wraps the
+  underlying session's `receive()` generator to detect `go_away` frames
+  without touching the plugin's own message handling.
+- On `GoAway`, the teacher is asked to deliver a short Hausa wrap-up (recap +
+  goodbye) through the still-open connection, then the agent closes its own
+  session cleanly — before Gemini forcibly closes it.
+- As a safety net, any other unclean realtime disconnect (one that wasn't
+  preceded by a `GoAway` we saw) also ends the agent session cleanly instead
+  of leaving it retrying against a dead connection.
+
+If a future `vision-agents` release wires up session resumption end-to-end,
+switching to transparent resumption (continuing the same session instead of
+wrapping up and ending it) would be the better long-term fix.
+
 ## Manual verification scripts
 
 - `scripts/verify_hausa.py` — connects directly to Gemini Live (no call
