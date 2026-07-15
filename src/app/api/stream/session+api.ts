@@ -25,10 +25,13 @@ const CALL_TYPE = "default";
  * Has the Ajami teacher (vision-agent/, Gemini Live) join the call as a
  * second participant. Best-effort: the learner can still have their audio
  * lesson call without the AI teacher, so a failure here is logged, not
- * thrown — the client isn't blocked on it.
+ * thrown — the client isn't blocked on it. The boolean return (did the
+ * agent-start request succeed?) is surfaced in the session response so the
+ * client can show a "teacher not available" state instead of silently
+ * waiting for a teacher that will never join.
  */
-async function requestTeacherJoin(callId: string): Promise<void> {
-  if (!VISION_AGENT_URL) return;
+async function requestTeacherJoin(callId: string): Promise<boolean> {
+  if (!VISION_AGENT_URL) return false;
 
   try {
     const response = await fetch(`${VISION_AGENT_URL}/calls/${callId}/sessions`, {
@@ -41,9 +44,12 @@ async function requestTeacherJoin(callId: string): Promise<void> {
       console.error(
         `vision-agent session-start failed for call ${callId}: ${response.status}`
       );
+      return false;
     }
+    return true;
   } catch (err) {
     console.error(`Failed to reach vision-agent for call ${callId}`, err);
+    return false;
   }
 }
 
@@ -105,7 +111,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Failed to reserve the lesson call" }, { status: 502 });
   }
 
-  await requestTeacherJoin(callId);
+  const teacherJoinOk = await requestTeacherJoin(callId);
 
   return Response.json({
     apiKey: STREAM_API_KEY,
@@ -113,5 +119,6 @@ export async function POST(request: Request) {
     token,
     callId,
     callType: CALL_TYPE,
+    teacherJoinFailed: !teacherJoinOk,
   });
 }

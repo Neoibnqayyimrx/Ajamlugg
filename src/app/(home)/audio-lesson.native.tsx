@@ -38,7 +38,7 @@ import {
   useCallStateHooks,
 } from "@stream-io/video-react-native-sdk";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -66,7 +66,18 @@ const C = {
   endRed: "#D95040",
   muted: "#9CA3AF",
   amber: "#D97706",
+  info: "#2E86DE",
 };
+
+// The vision-agent teacher's Stream user id (see AGENT_USER in
+// vision-agent/agent.py) and the custom call event type it listens for to
+// trigger an explicit student-initiated interrupt (see student_interrupt
+// handling registered in that same file).
+const TEACHER_USER_ID = "ajami-teacher";
+const STUDENT_INTERRUPT_EVENT_TYPE = "student_interrupt";
+const TEACHER_JOIN_TIMEOUT_MS = 20_000;
+
+type TeacherStatus = "joining" | "joined" | "not-available";
 
 // ─── Mock session feedback ─────────────────────────────────────────────────────
 // Real scores come from the AI agent later; these drive the design's
@@ -132,14 +143,29 @@ function statusMeta(status: AudioLessonCallStatus) {
   }
 }
 
+function teacherStatusMeta(status: TeacherStatus) {
+  switch (status) {
+    case "joined":
+      return { label: "Teacher connected", dot: "#22C55E" };
+    case "not-available":
+      return { label: "Teacher unavailable", dot: C.endRed };
+    default:
+      return { label: "Teacher joining…", dot: C.amber };
+  }
+}
+
 // ─── Header ────────────────────────────────────────────────────────────────────
 
 function SessionHeader({
   onBack,
   status,
+  isLive,
+  onEndCall,
 }: {
   onBack: () => void;
   status: AudioLessonCallStatus;
+  isLive: boolean;
+  onEndCall: () => void;
 }) {
   const meta = statusMeta(status);
   return (
@@ -167,6 +193,19 @@ function SessionHeader({
       <Pressable className="w-10 h-10 rounded-md bg-[#FFFFFF] items-center justify-center shadow-sm">
         <Ionicons name="notifications-outline" size={20} color={C.text} />
       </Pressable>
+
+      {/* End call: deliberately smaller than the other header icons and set
+          apart at the far top-right corner so it isn't accidentally tapped
+          alongside the other controls. Only shown once the call is live. */}
+      {isLive && (
+        <Pressable
+          onPress={onEndCall}
+          hitSlop={4}
+          className="w-8 h-8 rounded-full bg-[#D95040] items-center justify-center shadow-sm"
+        >
+          <Ionicons name="call" size={16} color="#FFFFFF" />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -210,7 +249,7 @@ function TeacherStage({
   avatarUrl,
   userName,
   line,
-  subtitlesOn,
+  teacherStatus,
   onAdvance,
 }: {
   lessonLabel: string;
@@ -219,9 +258,11 @@ function TeacherStage({
   avatarUrl?: string | null;
   userName: string;
   line: TeacherLine;
-  subtitlesOn: boolean;
+  teacherStatus: TeacherStatus;
   onAdvance: () => void;
 }) {
+  const teacherMeta = teacherStatusMeta(teacherStatus);
+
   return (
     <View className="mx-5 mt-3 h-[420px] rounded-3xl overflow-hidden bg-[#EADFC8]">
       {/* Backdrop artwork (teacher preview placeholder — not a video feed) */}
@@ -245,6 +286,13 @@ function TeacherStage({
           <View className="w-1.5 h-1.5 rounded-full bg-[#D95040]" />
           <Text className="font-poppins-semibold text-[11px] text-[#FFFFFF]">
             Audio lesson · {elapsed}
+          </Text>
+        </View>
+        {/* Subtle teacher connection status, near the teacher's tile */}
+        <View className="flex-row items-center gap-1.5 bg-[#1A1A1A]/60 rounded-full px-3 py-1.5 self-start">
+          <View className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: teacherMeta.dot }} />
+          <Text className="font-poppins-semibold text-[11px] text-[#FFFFFF]">
+            {teacherMeta.label}
           </Text>
         </View>
       </View>
@@ -272,11 +320,9 @@ function TeacherStage({
           <Text className="font-poppins-bold text-[17px] text-[#1A1A1A]" numberOfLines={1}>
             {line.headline}
           </Text>
-          {subtitlesOn && (
-            <Text className="font-poppins-regular text-[13px] text-[#6B7280]" numberOfLines={2}>
-              {line.subtitle}
-            </Text>
-          )}
+          <Text className="font-poppins-regular text-[13px] text-[#6B7280]" numberOfLines={2}>
+            {line.subtitle}
+          </Text>
         </View>
         <Ionicons name="volume-high" size={24} color={C.green} />
       </Pressable>
@@ -407,43 +453,78 @@ function PreCallStage({
   );
 }
 
-// ─── Call controls ─────────────────────────────────────────────────────────────
+// ─── Mic / interrupt button (the one prominent call control) ──────────────
+// Model: the mic is live by default (natural voice barge-in keeps working
+// unchanged). A tap sends an explicit "interrupt the teacher" signal and
+// shows a brief listening acknowledgment; a long-press toggles real
+// mute/unmute for noisy environments.
 
-function ControlButton({
-  icon,
-  label,
-  onPress,
-  active = false,
-  disabled = false,
-  danger = false,
+type MicButtonVisualState = "live" | "listening" | "muted";
+
+function micButtonMeta(state: MicButtonVisualState) {
+  switch (state) {
+    case "muted":
+      return { icon: "mic-off" as const, bg: C.muted, label: "Muted" };
+    case "listening":
+      return { icon: "ear" as const, bg: C.info, label: "Listening…" };
+    default:
+      return { icon: "mic" as const, bg: C.green, label: "Mic live" };
+  }
+}
+
+function MicInterruptButton({
+  micOn,
+  onInterrupt,
+  onToggleMute,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>["name"];
-  label: string;
-  onPress?: () => void;
-  /** Highlights the label green (e.g. subtitles on, mic live) */
-  active?: boolean;
-  /** Visual-only placeholder (camera in an audio-only session) */
-  disabled?: boolean;
-  danger?: boolean;
+  micOn: boolean;
+  /** Explicit tap-to-interrupt the teacher while they're speaking. */
+  onInterrupt: () => void;
+  /** Long-press: toggle actual mute/unmute. */
+  onToggleMute: () => void;
 }) {
-  const iconColor = danger ? "#FFFFFF" : disabled ? C.muted : C.green;
+  const [justInterrupted, setJustInterrupted] = useState(false);
+  const ackTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    return () => {
+      if (ackTimeoutRef.current) clearTimeout(ackTimeoutRef.current);
+    };
+  }, []);
+
+  const handlePress = () => {
+    onInterrupt();
+    setJustInterrupted(true);
+    if (ackTimeoutRef.current) clearTimeout(ackTimeoutRef.current);
+    ackTimeoutRef.current = setTimeout(() => setJustInterrupted(false), 1500);
+  };
+
+  // Pressable's onPress is automatically suppressed after onLongPress fires
+  // (see Pressability.js's isPressCanceledByLongPress), so a long-press
+  // never also triggers an interrupt tap.
+  const visualState: MicButtonVisualState = !micOn
+    ? "muted"
+    : justInterrupted
+      ? "listening"
+      : "live";
+  const meta = micButtonMeta(visualState);
+
   return (
-    <Pressable onPress={onPress} disabled={disabled} className="items-center gap-2 w-[76px]">
-      <View
-        className={`w-16 h-16 rounded-full items-center justify-center ${
-          danger ? "bg-[#D95040]" : "bg-[#FFFFFF] border border-[#EDE8E0]"
-        } ${disabled ? "opacity-60" : ""}`}
+    <View className="items-center gap-2">
+      <Pressable
+        onPress={handlePress}
+        onLongPress={onToggleMute}
+        delayLongPress={450}
+        className="w-20 h-20 rounded-full items-center justify-center shadow-md"
+        style={{ backgroundColor: meta.bg }}
       >
-        <Ionicons name={icon} size={26} color={iconColor} />
-      </View>
-      <Text
-        className={`font-poppins-semibold text-[13px] ${
-          active ? "text-[#1B6B3A]" : disabled ? "text-[#9CA3AF]" : "text-[#1A1A1A]"
-        }`}
-      >
-        {label}
+        <Ionicons name={meta.icon} size={34} color="#FFFFFF" />
+      </Pressable>
+      <Text className="font-poppins-semibold text-[13px] text-[#1A1A1A]">{meta.label}</Text>
+      <Text className="font-poppins-regular text-[11px] text-[#6B7280]">
+        Tap to interrupt · Hold to mute
       </Text>
-    </Pressable>
+    </View>
   );
 }
 
@@ -507,6 +588,25 @@ function AjamiDisplayCard({
   );
 }
 
+// ─── Teacher unavailable banner ────────────────────────────────────────────────
+// Shown when the AI teacher never joins the call (agent-start failure
+// reported by the server, or the join timeout elapsed).
+
+function TeacherUnavailableBanner() {
+  return (
+    <View className="mx-5 mt-3 bg-[#FFFFFF] rounded-2xl border border-[#EDE8E0] px-5 py-4 gap-1.5">
+      <View className="flex-row items-center gap-2">
+        <Ionicons name="alert-circle" size={18} color={C.endRed} />
+        <Text className="font-poppins-bold text-[15px] text-[#1A1A1A]">Teacher unavailable</Text>
+      </View>
+      <Text className="font-poppins-regular text-[13px] leading-[19px] text-[#6B7280]">
+        Your AI teacher couldn&rsquo;t join this session. You can keep practicing on your own, or
+        end the call and try again in a moment.
+      </Text>
+    </View>
+  );
+}
+
 // ─── Live call body (mounted inside <StreamCall> once joined) ─────────────────
 // The only place that reads reactive Stream call state (mic status) — the
 // hook that owns the `Call` instance stays outside React's provider tree.
@@ -516,21 +616,18 @@ function LiveLessonBody({
   avatarUrl,
   userName,
   line,
-  subtitlesOn,
+  teacherJoinFailed,
   onAdvance,
-  onToggleSubtitles,
   onToggleMic,
-  onEndCall,
 }: {
   lessonLabel: string;
   avatarUrl?: string | null;
   userName: string;
   line: TeacherLine;
-  subtitlesOn: boolean;
+  /** The server-side agent-start request failed — skip straight to "not-available". */
+  teacherJoinFailed: boolean;
   onAdvance: () => void;
-  onToggleSubtitles: () => void;
   onToggleMic: () => void;
-  onEndCall: () => void;
 }) {
   const { useMicrophoneState } = useCallStateHooks();
   const { status: micStatus } = useMicrophoneState();
@@ -543,9 +640,10 @@ function LiveLessonBody({
     return () => clearInterval(timer);
   }, []);
 
+  const call = useCall();
+
   // AI teacher's on-screen display tool — a new event always replaces
   // whatever is currently shown.
-  const call = useCall();
   const [displayPayload, setDisplayPayload] = useState<AjamiDisplayPayload | null>(null);
   useEffect(() => {
     if (!call) return;
@@ -556,6 +654,38 @@ function LiveLessonBody({
     });
   }, [call]);
 
+  // Teacher connection status: "joining" until the agent participant
+  // (TEACHER_USER_ID) shows up in the call, "joined" once it does, or
+  // "not-available" if the server already reported an agent-start failure
+  // or the join timeout elapses first.
+  const { useRemoteParticipants } = useCallStateHooks();
+  const remoteParticipants = useRemoteParticipants();
+  const teacherPresent = remoteParticipants.some((p) => p.userId === TEACHER_USER_ID);
+
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (teacherPresent || teacherJoinFailed) return;
+    const timer = setTimeout(() => setTimedOut(true), TEACHER_JOIN_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [teacherPresent, teacherJoinFailed]);
+
+  const teacherStatus: TeacherStatus = teacherPresent
+    ? "joined"
+    : teacherJoinFailed || timedOut
+      ? "not-available"
+      : "joining";
+
+  // Explicit "interrupt the teacher" tap: sends a Stream custom call event
+  // the vision-agent picks up to trigger the same interrupt path it already
+  // uses for natural voice barge-in (see student_interrupt handling in
+  // vision-agent/agent.py). Natural barge-in via the live mic keeps working
+  // unchanged — this is only the explicit, deliberate version of it.
+  const handleInterrupt = () => {
+    call
+      ?.sendCustomEvent({ type: STUDENT_INTERRUPT_EVENT_TYPE })
+      .catch((err) => console.error("Failed to send student_interrupt event", err));
+  };
+
   return (
     <>
       <TeacherStage
@@ -565,7 +695,7 @@ function LiveLessonBody({
         avatarUrl={avatarUrl}
         userName={userName}
         line={line}
-        subtitlesOn={subtitlesOn}
+        teacherStatus={teacherStatus}
         onAdvance={onAdvance}
       />
 
@@ -576,21 +706,14 @@ function LiveLessonBody({
         />
       )}
 
-      <View className="flex-row justify-center gap-2 mt-5 px-5">
-        <ControlButton icon="videocam-off" label="Camera" disabled />
-        <ControlButton
-          icon={micOn ? "mic" : "mic-off"}
-          label={micOn ? "Mic" : "Muted"}
-          active={micOn}
-          onPress={onToggleMic}
+      {teacherStatus === "not-available" && <TeacherUnavailableBanner />}
+
+      <View className="items-center mt-5 px-5">
+        <MicInterruptButton
+          micOn={micOn}
+          onInterrupt={handleInterrupt}
+          onToggleMute={onToggleMic}
         />
-        <ControlButton
-          icon="chatbox-ellipses-outline"
-          label="Subtitles"
-          active={subtitlesOn}
-          onPress={onToggleSubtitles}
-        />
-        <ControlButton icon="call" label="End Call" danger onPress={onEndCall} />
       </View>
     </>
   );
@@ -726,7 +849,6 @@ export default function AudioLessonScreen() {
   );
 
   const [lineIndex, setLineIndex] = useState(0);
-  const [subtitlesOn, setSubtitlesOn] = useState(true);
 
   const userName = user?.fullName || user?.username || "You";
 
@@ -780,7 +902,12 @@ export default function AudioLessonScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 24 }}
       >
-        <SessionHeader onBack={goBack} status={callSession.status} />
+        <SessionHeader
+          onBack={goBack}
+          status={callSession.status}
+          isLive={!!isLive}
+          onEndCall={callSession.endCall}
+        />
 
         {isLive ? (
           <StreamVideo client={callSession.client!}>
@@ -790,11 +917,9 @@ export default function AudioLessonScreen() {
                 avatarUrl={user?.imageUrl}
                 userName={userName}
                 line={script[lineIndex]}
-                subtitlesOn={subtitlesOn}
+                teacherJoinFailed={callSession.teacherJoinFailed}
                 onAdvance={advanceLine}
-                onToggleSubtitles={() => setSubtitlesOn((v) => !v)}
                 onToggleMic={callSession.toggleMic}
-                onEndCall={callSession.endCall}
               />
             </StreamCall>
           </StreamVideo>

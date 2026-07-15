@@ -36,6 +36,12 @@ HAUSA_LANGUAGE_ID = "hausa-ajami"
 # card. Keep this string in sync with that listener.
 AJAMI_DISPLAY_EVENT_TYPE = "ajami_display"
 
+# Custom call event type the mobile app *sends* (see MicInterruptButton /
+# call.sendCustomEvent(...) in src/app/(home)/audio-lesson.native.tsx) when the
+# learner taps the mic button to explicitly interrupt the teacher. Keep this
+# string in sync with that sender.
+STUDENT_INTERRUPT_EVENT_TYPE = "student_interrupt"
+
 AGENT_USER = User(name="Malamin Ajami", id="ajami-teacher")
 
 BASE_PERSONA = """
@@ -269,6 +275,48 @@ def _register_display_tool(agent: Agent) -> None:
         return {"shown": True}
 
 
+def _register_student_interrupt_handler(agent: Agent) -> None:
+    """Lets the learner explicitly interrupt the teacher mid-sentence.
+
+    The mobile app's mic button (src/app/(home)/audio-lesson.native.tsx,
+    MicInterruptButton) sends a Stream custom call event
+    ({"type": "student_interrupt"}) via `call.sendCustomEvent(...)` on tap.
+
+    There is no public Agent/EdgeTransport API in the installed vision-agents
+    SDK for (a) receiving coordinator-level custom call events, or (b)
+    triggering an interrupt directly outside of asking the LLM to say
+    something (Agent.simple_response/say, which speak a new line rather than
+    just going quiet). So this reaches into the same objects the SDK builds
+    internally during `agent.join(call)`:
+      - `agent._connection._connection` is the raw
+        `getstream.video.rtc.ConnectionManager` for this call. It already
+        re-emits the coordinator websocket's "custom" event (see
+        `StreamEdge.join` in vision_agents.plugins.getstream.
+        stream_edge_transport, which listens to the same connection for
+        "participant_joined"/"track_published"/etc) — `.on("custom", ...)`
+        below is the receiving half of the exact channel
+        `agent.send_custom_event(...)` already uses to send the
+        `ajami_display` event to the app.
+      - `agent._flow.interrupt()` is the exact interrupt path
+        `RealtimeInferenceFlow.process_llm_output` already calls for natural
+        voice barge-in (its "Participant barged-in, interrupting the agent"
+        log line, in vision_agents.core.agents.inference.realtime_flow) — it
+        clears the LLM/audio-output buffers without asking the model to say
+        anything new, so a tap just goes quiet instead of talking over the
+        student.
+    """
+    raw_connection = agent._connection._connection
+
+    async def _on_custom_event(message: dict) -> None:
+        payload = message.get("custom") or {}
+        if payload.get("type") != STUDENT_INTERRUPT_EVENT_TYPE:
+            return
+        logger.info("👉 Student tapped interrupt; stopping the teacher")
+        await agent._flow.interrupt()
+
+    raw_connection.on("custom", _on_custom_event)
+
+
 async def create_agent(**kwargs) -> Agent:
     wrap_up = _GoAwayWrapUp()
     agent = Agent(
@@ -318,6 +366,8 @@ async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> Non
     agent.llm.set_instructions(agent.instructions)
 
     async with agent.join(call):
+        _register_student_interrupt_handler(agent)
+
         lesson_title = lesson.get("title") if lesson else None
         greeting_instruction = (
             f"Gai da dalibi cikin dumi da Hausa, sannan ka fara darasi akan: {lesson_title}."

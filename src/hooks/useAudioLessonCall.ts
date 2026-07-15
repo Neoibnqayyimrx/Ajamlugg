@@ -48,6 +48,7 @@ export function useAudioLessonCall({
   const [errorMessage, setErrorMessage] = useState<string>();
   const [client, setClient] = useState<StreamVideoClient>();
   const [call, setCall] = useState<Call>();
+  const [teacherJoinFailed, setTeacherJoinFailed] = useState(false);
 
   // Cleanup reads the latest instances without re-registering the effect.
   const clientRef = useRef(client);
@@ -79,6 +80,7 @@ export function useAudioLessonCall({
 
   const start = useCallback(async () => {
     setErrorMessage(undefined);
+    setTeacherJoinFailed(false);
     setStatus("connecting");
 
     const getClerkSessionToken = () => getToken();
@@ -86,6 +88,7 @@ export function useAudioLessonCall({
 
     try {
       const session = await fetchStreamSession(getClerkSessionToken, sessionParams);
+      setTeacherJoinFailed(session.teacherJoinFailed);
 
       const user: User = {
         id: session.userId,
@@ -139,5 +142,14 @@ export function useAudioLessonCall({
     }
   }, []);
 
-  return { status, errorMessage, client, call, start, endCall, toggleMic };
+  return {
+    status,
+    errorMessage,
+    client,
+    call,
+    teacherJoinFailed,
+    start,
+    endCall,
+    toggleMic,
+  };
 }

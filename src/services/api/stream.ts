@@ -15,6 +15,8 @@ export interface StreamSession {
   token: string;
   callId: string;
   callType: string;
+  /** True if the server-side vision-agent (AI teacher) start request failed. */
+  teacherJoinFailed: boolean;
 }
 
 interface StreamSessionParams {
