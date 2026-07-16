@@ -17,6 +17,7 @@ const STREAM_API_KEY = process.env.STREAM_API_KEY;
 const STREAM_API_SECRET = process.env.STREAM_API_SECRET;
 const CLERK_SECRET_KEY = process.env.CLERK_SECRET_KEY;
 const VISION_AGENT_URL = process.env.VISION_AGENT_URL;
+const VISION_AGENT_SECRET = process.env.VISION_AGENT_SECRET;
 
 const TOKEN_VALIDITY_SECONDS = 60 * 60 * 4; // ~4h, SDK refreshes via tokenProvider
 const CALL_TYPE = "default";
@@ -31,12 +32,15 @@ const CALL_TYPE = "default";
  * waiting for a teacher that will never join.
  */
 async function requestTeacherJoin(callId: string): Promise<boolean> {
-  if (!VISION_AGENT_URL) return false;
+  if (!VISION_AGENT_URL || !VISION_AGENT_SECRET) return false;
 
   try {
     const response = await fetch(`${VISION_AGENT_URL}/calls/${callId}/sessions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Vision-Agent-Secret": VISION_AGENT_SECRET,
+      },
       body: JSON.stringify({ call_type: CALL_TYPE }),
       signal: AbortSignal.timeout(5000),
     });

@@ -24,9 +24,10 @@
  *   - phrases         → vocabulary embedded in the lesson's activities
  *   - teacher context → lesson.aiTeacherPrompt
  *
- * The "teacher" speaks through a script of lines built from that data.
- * Tapping the response bubble advances to the next line — a simple mock
- * of the real AI audio agent that arrives later (Stream Vision Agents).
+ * The teacher actually speaks through the live AI agent (see
+ * vision-agent/agent.py) over the Stream Video call; what it (and the
+ * learner) say is shown live via the caption bar in TeacherStage, driven by
+ * "caption" custom call events.
  */
 
 import { useUser } from "@clerk/clerk-expo";
@@ -38,7 +39,7 @@ import {
   useCallStateHooks,
 } from "@stream-io/video-react-native-sdk";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -49,6 +50,7 @@ import { LANGUAGES } from "@/data/languages";
 import { LESSONS } from "@/data/lessons";
 import { UNITS } from "@/data/units";
 import { AudioLessonCallStatus, useAudioLessonCall } from "@/hooks/useAudioLessonCall";
+import { useCaptionsStore } from "@/store/useCaptionsStore";
 import { Lesson, Vocabulary } from "@/types/learning";
 
 // ─── Palette (matches home + learn screens) ───────────────────────────────────
@@ -89,35 +91,91 @@ const SESSION_FEEDBACK = [
   { id: "grammar", label: "Grammar", rating: "Good", icon: "book" as const, variant: "emerald" as const, color: C.green, progress: 0.75 },
 ];
 
-// ─── Teacher script ────────────────────────────────────────────────────────────
-// The lines the AI teacher "says" during the session, built from lesson data:
-// a greeting, one line per phrase, then the closing praise from the design.
+// ─── Live captions (AI teacher's + learner's realtime transcript) ─────────────
+// Rendered from Stream custom call events of type "caption" (see
+// CAPTION_EVENT_TYPE in vision-agent/agent.py, which forwards the realtime
+// transcripts the vision_agents SDK already produces for both speakers,
+// batched per utterance). Replaces the old tap-to-advance mock script bubble
+// that used to live in TeacherStage — one caption system, no duplicates.
 
-interface TeacherLine {
-  headline: string;
-  subtitle: string;
+type CaptionSpeaker = "teacher" | "learner";
+
+interface CaptionPayload {
+  type: "caption";
+  speaker: CaptionSpeaker;
+  text: string;
+  /** True once the utterance is complete; omitted/false while still building up. */
+  final?: boolean;
 }
 
-function buildTeacherScript(lesson: Lesson, phrases: Vocabulary[]): TeacherLine[] {
-  const phraseLines: TeacherLine[] =
-    phrases.length > 0
-      ? phrases.map((p) => ({
-          headline: `${p.transliteration} · ${p.ajami}`,
-          subtitle: `${p.translation} — repeat after me! 🎙️`,
-        }))
-      : lesson.activities.map((a) => ({
-          headline: a.prompt,
-          subtitle: "Give it a try — say it out loud! 🎙️",
-        }));
+function isCaptionPayload(data: unknown): data is CaptionPayload {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+  return (
+    d.type === "caption" &&
+    (d.speaker === "teacher" || d.speaker === "learner") &&
+    typeof d.text === "string"
+  );
+}
 
-  return [
-    {
-      headline: "Salaam! 👋",
-      subtitle: `Today's lesson: ${lesson.title}. ${lesson.goals[0]}.`,
-    },
-    ...phraseLines,
-    { headline: "Madallah!", subtitle: "That was great! 👏" },
-  ];
+interface CaptionLine {
+  speaker: CaptionSpeaker;
+  text: string;
+}
+
+interface CaptionState {
+  /** The utterance currently building up (not yet finalized), if any. */
+  current: CaptionLine | null;
+  /** The last utterance that finished, shown once `current` clears. */
+  recent: CaptionLine | null;
+}
+
+const INITIAL_CAPTION_STATE: CaptionState = { current: null, recent: null };
+
+// Pure reducer — kept side-effect-free so fragment accumulation can be
+// verified headlessly without mounting the screen (see manual test
+// checklist / test script referenced in the PR).
+function reduceCaptionEvent(state: CaptionState, event: CaptionPayload): CaptionState {
+  if (!event.text) return state;
+  if (event.final) {
+    return { current: null, recent: { speaker: event.speaker, text: event.text } };
+  }
+  return { ...state, current: { speaker: event.speaker, text: event.text } };
+}
+
+function LiveCaptionBar({ state, dimmed }: { state: CaptionState; dimmed: boolean }) {
+  const line = state.current ?? state.recent;
+  if (!line) return null;
+
+  const isTeacher = line.speaker === "teacher";
+  const building = state.current !== null;
+
+  return (
+    <View
+      className="absolute bottom-4 left-4 right-4 bg-[#FFFFFF] rounded-2xl px-4 py-3.5 flex-row items-start gap-3 shadow-md"
+      style={{ opacity: dimmed ? 0.55 : 1 }}
+    >
+      <View className="w-9 h-9 rounded-full bg-[#FDF6E3] items-center justify-center">
+        <Ionicons
+          name={isTeacher ? "sparkles" : "mic"}
+          size={18}
+          color={isTeacher ? C.gold : C.green}
+        />
+      </View>
+      <View className="flex-1">
+        <Text className="font-poppins-semibold text-[11px] text-[#6B7280]">
+          {isTeacher ? "Teacher" : "You"}
+        </Text>
+        <Text
+          className="font-poppins-regular text-[15px] text-[#1A1A1A]"
+          style={{ opacity: building ? 1 : 0.6 }}
+          numberOfLines={3}
+        >
+          {line.text}
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 function formatElapsed(totalSeconds: number) {
@@ -240,7 +298,7 @@ function LearnerTile({
 
 // ─── Teacher preview card (live session) ───────────────────────────────────────
 // Visual placeholder only (no video): warm artwork backdrop, the mascot as
-// the teacher, the learner's avatar tile, and the teacher response bubble.
+// the teacher, the learner's avatar tile, and the live caption bar.
 
 function TeacherStage({
   lessonLabel,
@@ -248,18 +306,22 @@ function TeacherStage({
   micOn,
   avatarUrl,
   userName,
-  line,
   teacherStatus,
-  onAdvance,
+  captionState,
+  captionsEnabled,
+  onToggleCaptions,
+  hasDisplayCard,
 }: {
   lessonLabel: string;
   elapsed: string;
   micOn: boolean;
   avatarUrl?: string | null;
   userName: string;
-  line: TeacherLine;
   teacherStatus: TeacherStatus;
-  onAdvance: () => void;
+  captionState: CaptionState;
+  captionsEnabled: boolean;
+  onToggleCaptions: () => void;
+  hasDisplayCard: boolean;
 }) {
   const teacherMeta = teacherStatusMeta(teacherStatus);
 
@@ -295,6 +357,24 @@ function TeacherStage({
             {teacherMeta.label}
           </Text>
         </View>
+        {/* Live captions on/off — default ON; for listening practice learners
+            may want them hidden. Preference persists (see useCaptionsStore). */}
+        <Pressable
+          onPress={onToggleCaptions}
+          className="flex-row items-center gap-1.5 bg-[#1A1A1A]/60 rounded-full px-3 py-1.5 self-start"
+        >
+          <Ionicons
+            name={captionsEnabled ? "chatbox-ellipses" : "chatbox-ellipses-outline"}
+            size={12}
+            color={captionsEnabled ? "#8FE3B0" : "#FFFFFF"}
+          />
+          <Text
+            className="font-poppins-semibold text-[11px]"
+            style={{ color: captionsEnabled ? "#8FE3B0" : "#FFFFFF" }}
+          >
+            Captions {captionsEnabled ? "on" : "off"}
+          </Text>
+        </Pressable>
       </View>
 
       {/* Top-right: learner tile (avatar + name — audio only, no camera) */}
@@ -308,24 +388,9 @@ function TeacherStage({
         }
       />
 
-      {/* Teacher response bubble — tap to hear the next line */}
-      <Pressable
-        onPress={onAdvance}
-        className="absolute bottom-4 left-4 right-4 bg-[#FFFFFF] rounded-2xl px-4 py-3.5 flex-row items-center gap-3 shadow-md"
-      >
-        <View className="w-9 h-9 rounded-full bg-[#FDF6E3] items-center justify-center">
-          <Ionicons name="sparkles" size={18} color={C.gold} />
-        </View>
-        <View className="flex-1">
-          <Text className="font-poppins-bold text-[17px] text-[#1A1A1A]" numberOfLines={1}>
-            {line.headline}
-          </Text>
-          <Text className="font-poppins-regular text-[13px] text-[#6B7280]" numberOfLines={2}>
-            {line.subtitle}
-          </Text>
-        </View>
-        <Ionicons name="volume-high" size={24} color={C.green} />
-      </Pressable>
+      {/* Live caption of the current/most recent utterance (teacher or
+          learner) — hidden when the learner has turned captions off. */}
+      {captionsEnabled && <LiveCaptionBar state={captionState} dimmed={hasDisplayCard} />}
     </View>
   );
 }
@@ -459,7 +524,7 @@ function PreCallStage({
 // shows a brief listening acknowledgment; a long-press toggles real
 // mute/unmute for noisy environments.
 
-type MicButtonVisualState = "live" | "listening" | "muted";
+type MicButtonVisualState = "live" | "listening" | "muted" | "interruptFailed";
 
 function micButtonMeta(state: MicButtonVisualState) {
   switch (state) {
@@ -467,6 +532,8 @@ function micButtonMeta(state: MicButtonVisualState) {
       return { icon: "mic-off" as const, bg: C.muted, label: "Muted" };
     case "listening":
       return { icon: "ear" as const, bg: C.info, label: "Listening…" };
+    case "interruptFailed":
+      return { icon: "alert-circle" as const, bg: C.endRed, label: "Couldn't reach teacher" };
     default:
       return { icon: "mic" as const, bg: C.green, label: "Mic live" };
   }
@@ -478,12 +545,17 @@ function MicInterruptButton({
   onToggleMute,
 }: {
   micOn: boolean;
-  /** Explicit tap-to-interrupt the teacher while they're speaking. */
-  onInterrupt: () => void;
+  /**
+   * Explicit tap-to-interrupt the teacher while they're speaking. Resolves
+   * once the interrupt event has actually been sent — the button only shows
+   * "Listening…" once this resolves, and a distinct failure state if it
+   * rejects, instead of acknowledging a tap that never reached the teacher.
+   */
+  onInterrupt: () => Promise<void>;
   /** Long-press: toggle actual mute/unmute. */
   onToggleMute: () => void;
 }) {
-  const [justInterrupted, setJustInterrupted] = useState(false);
+  const [ackState, setAckState] = useState<"idle" | "listening" | "failed">("idle");
   const ackTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
@@ -493,10 +565,17 @@ function MicInterruptButton({
   }, []);
 
   const handlePress = () => {
-    onInterrupt();
-    setJustInterrupted(true);
     if (ackTimeoutRef.current) clearTimeout(ackTimeoutRef.current);
-    ackTimeoutRef.current = setTimeout(() => setJustInterrupted(false), 1500);
+    onInterrupt()
+      .then(() => {
+        setAckState("listening");
+        ackTimeoutRef.current = setTimeout(() => setAckState("idle"), 1500);
+      })
+      .catch((err) => {
+        console.error("Failed to send student_interrupt event", err);
+        setAckState("failed");
+        ackTimeoutRef.current = setTimeout(() => setAckState("idle"), 1500);
+      });
   };
 
   // Pressable's onPress is automatically suppressed after onLongPress fires
@@ -504,9 +583,11 @@ function MicInterruptButton({
   // never also triggers an interrupt tap.
   const visualState: MicButtonVisualState = !micOn
     ? "muted"
-    : justInterrupted
+    : ackState === "listening"
       ? "listening"
-      : "live";
+      : ackState === "failed"
+        ? "interruptFailed"
+        : "live";
   const meta = micButtonMeta(visualState);
 
   return (
@@ -615,18 +696,14 @@ function LiveLessonBody({
   lessonLabel,
   avatarUrl,
   userName,
-  line,
   teacherJoinFailed,
-  onAdvance,
   onToggleMic,
 }: {
   lessonLabel: string;
   avatarUrl?: string | null;
   userName: string;
-  line: TeacherLine;
   /** The server-side agent-start request failed — skip straight to "not-available". */
   teacherJoinFailed: boolean;
-  onAdvance: () => void;
   onToggleMic: () => void;
 }) {
   const { useMicrophoneState } = useCallStateHooks();
@@ -643,13 +720,20 @@ function LiveLessonBody({
   const call = useCall();
 
   // AI teacher's on-screen display tool — a new event always replaces
-  // whatever is currently shown.
+  // whatever is currently shown. Live captions share the same custom-event
+  // channel (see CAPTION_EVENT_TYPE in vision-agent/agent.py) with a
+  // different `type`, so both are handled in this one subscription.
   const [displayPayload, setDisplayPayload] = useState<AjamiDisplayPayload | null>(null);
+  const [captionState, dispatchCaption] = useReducer(reduceCaptionEvent, INITIAL_CAPTION_STATE);
+  const captionsEnabled = useCaptionsStore((s) => s.captionsEnabled);
+  const toggleCaptions = useCaptionsStore((s) => s.toggleCaptions);
   useEffect(() => {
     if (!call) return;
     return call.on("custom", (event) => {
       if (isAjamiDisplayPayload(event.custom)) {
         setDisplayPayload(event.custom);
+      } else if (isCaptionPayload(event.custom)) {
+        dispatchCaption(event.custom);
       }
     });
   }, [call]);
@@ -680,10 +764,11 @@ function LiveLessonBody({
   // uses for natural voice barge-in (see student_interrupt handling in
   // vision-agent/agent.py). Natural barge-in via the live mic keeps working
   // unchanged — this is only the explicit, deliberate version of it.
-  const handleInterrupt = () => {
-    call
-      ?.sendCustomEvent({ type: STUDENT_INTERRUPT_EVENT_TYPE })
-      .catch((err) => console.error("Failed to send student_interrupt event", err));
+  // Returns the send promise (rather than swallowing it) so the button can
+  // gate its "Listening…" acknowledgment on actual delivery.
+  const handleInterrupt = (): Promise<void> => {
+    if (!call) return Promise.reject(new Error("No active call to interrupt"));
+    return call.sendCustomEvent({ type: STUDENT_INTERRUPT_EVENT_TYPE }).then(() => undefined);
   };
 
   return (
@@ -694,9 +779,11 @@ function LiveLessonBody({
         micOn={micOn}
         avatarUrl={avatarUrl}
         userName={userName}
-        line={line}
         teacherStatus={teacherStatus}
-        onAdvance={onAdvance}
+        captionState={captionState}
+        captionsEnabled={captionsEnabled}
+        onToggleCaptions={toggleCaptions}
+        hasDisplayCard={displayPayload !== null}
       />
 
       {displayPayload && (
@@ -843,13 +930,6 @@ export default function AudioLessonScreen() {
     [lesson]
   );
 
-  const script = useMemo(
-    () => (lesson ? buildTeacherScript(lesson, phrases) : []),
-    [lesson, phrases]
-  );
-
-  const [lineIndex, setLineIndex] = useState(0);
-
   const userName = user?.fullName || user?.username || "You";
 
   const callSession = useAudioLessonCall({
@@ -885,14 +965,6 @@ export default function AudioLessonScreen() {
     );
   }
 
-  // Loop back to the start after the closing line — lets learners replay
-  const advanceLine = () => setLineIndex((i) => (i + 1) % script.length);
-
-  const startCall = () => {
-    setLineIndex(0);
-    callSession.start();
-  };
-
   const lessonLabel = `${language.name} · ${lesson.title}`;
   const isLive = callSession.status === "joined" && callSession.client && callSession.call;
 
@@ -916,9 +988,7 @@ export default function AudioLessonScreen() {
                 lessonLabel={lessonLabel}
                 avatarUrl={user?.imageUrl}
                 userName={userName}
-                line={script[lineIndex]}
                 teacherJoinFailed={callSession.teacherJoinFailed}
-                onAdvance={advanceLine}
                 onToggleMic={callSession.toggleMic}
               />
             </StreamCall>
@@ -930,7 +1000,7 @@ export default function AudioLessonScreen() {
             lessonLabel={lessonLabel}
             avatarUrl={user?.imageUrl}
             userName={userName}
-            onStart={startCall}
+            onStart={callSession.start}
             onBack={goBack}
           />
         )}

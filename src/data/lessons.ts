@@ -13,7 +13,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the letter Ta (ت)",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching a beginner Hausa Ajami. Focus on the sounds 'A' (Alif), 'Ba' (Ba), and 'Ta' (Ta). If the user mispronounces, gently correct them by comparing the sound to English equivalents (like 'a' in 'apple', 'b' in 'bat', 't' in 'tap'). Keep instructions brief and encouraging.",
+      "Teach Alif (ا), Ba (ب), and Ta (ت) one at a time, slowly. Introduce each letter's sound by connecting it to a familiar Hausa word the learner already knows — the lesson is taught entirely in Hausa, so don't reach for English comparisons. If the learner mispronounces a letter, name exactly which sound was off, model it again slowly, and have them retry right away.",
     activities: [
       {
         id: "act-1",
@@ -64,7 +64,7 @@ export const LESSONS: Lesson[] = [
     stage: 1,
     goals: ["Distinguish between Alif, Ba, and Ta reliably"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. This is a review lesson for Alif, Ba, and Ta. Pay close attention to whether the user confuses Ba (one dot below) and Ta (two dots above). Provide hints based on the dot placement if they struggle.",
+      "This is a review lesson for Alif, Ba, and Ta — quiz one letter at a time rather than all at once. Listen closely for confusion between Ba (one dot below) and Ta (two dots above); if they mix them up, point to the dot placement as the specific clue and have them try again immediately.",
     activities: [
       {
         id: "act-4",
@@ -94,7 +94,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the letter Ha (ح)",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching Hausa Ajami. Teach Tha (ث), Jim (ج), and Ha (ح). Emphasize that dot count and placement change the sound. If the learner confuses letters, point to the dots as the clue.",
+      "Introduce Tha (ث), Jim (ج), and Ha (ح) one at a time, slowly — these three share a base shape, so pause on each letter's dots before moving to the next. If the learner confuses two letters, point out exactly which dot differs and have them compare the shapes before retrying.",
     activities: [
       {
         id: "act-6",
@@ -136,7 +136,7 @@ export const LESSONS: Lesson[] = [
       "Recognize damma (ُ) as the 'u' vowel",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching Hausa Ajami vowel marks. Explain that fatha, kasra, and damma sit above or below a letter and give it the 'a', 'i', or 'u' sound. Use 'ba', 'bi', 'bu' as examples and have the learner say each aloud.",
+      "Introduce fatha, kasra, and damma one mark at a time, showing how each changes ب into 'ba', 'bi', or 'bu'. Have the learner say the resulting syllable aloud after each mark before adding the next one, so the pattern builds step by step.",
     activities: [
       {
         id: "act-8",
@@ -170,7 +170,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the Ajami letter for the Hausa ɗ sound",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. Explain that Hausa has implosive sounds (ɓ, ɗ) that standard Arabic letters cannot write, so Hausa Ajami uses modified letters with extra dots. Model the difference between 'b' and 'ɓ' slowly and let the learner imitate.",
+      "Explain that Hausa has implosive sounds (ɓ, ɗ) standard Arabic letters can't capture, so Hausa Ajami adds extra dots to mark them. Model the 'b' vs 'ɓ' contrast slowly using a familiar Hausa word for each, then let the learner imitate one sound at a time, confirming before moving to the next.",
     activities: [
       {
         id: "act-10",
@@ -195,7 +195,7 @@ export const LESSONS: Lesson[] = [
     stage: 1,
     goals: ["Identify all unit letters quickly and reliably"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor running a review session. Quiz the learner on Alif, Ba, Ta, Tha, Jim, and Ha with vowel marks, mixing the order. Celebrate streaks of correct answers and slow down on any letter they miss twice.",
+      "Run a review session on Alif, Ba, Ta, Tha, Jim, and Ha with vowel marks, mixing the order one question at a time. Vary your celebration language for streaks of correct answers, and if they miss the same letter twice, slow down and revisit its distinguishing dot before continuing.",
     activities: [
       {
         id: "act-12",
@@ -224,7 +224,7 @@ export const LESSONS: Lesson[] = [
       "Read a two-letter combination",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching letter joining. Show how Ba (ب) becomes بـ at the start of a word and ـب at the end. Walk through joining Ba + Alif to read 'ba'. Keep each step small and confirm understanding before moving on.",
+      "Show how Ba (ب) changes shape — بـ at the start of a word, ـب at the end — one form at a time. Walk through joining Ba + Alif to read 'ba' step by step, confirming the learner follows each small step before adding the next, and have them read it back to you.",
     activities: [
       {
         id: "act-14",
@@ -250,7 +250,7 @@ export const LESSONS: Lesson[] = [
     stage: 2,
     goals: ["Read the word 'baba' (father) in Ajami script"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. Guide the learner to read بَابَا ('baba' — father) letter by letter, then as a whole word. Praise them for reading their first real Hausa word in Ajami.",
+      "Guide the learner through بَابَا ('baba' — father) one letter at a time, then have them blend it into the whole word themselves. This is their first real word — mark it with genuine, specific praise once they read it, not a generic line.",
     activities: [
       {
         id: "act-16",
@@ -288,7 +288,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the letter Ta (ت)",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching a beginner Swahili Ajami. Focus on Alif, Ba, and Ta. Relate the sounds to familiar Swahili words like 'baba' and 'tatu'. Keep instructions brief and encouraging.",
+      "Introduce Alif, Ba, and Ta one at a time, slowly, relating each sound to a familiar Swahili word ('baba', 'tatu') before moving to the next letter. Keep each turn short, and vary your encouragement rather than repeating the same praise.",
     activities: [
       {
         id: "sw-act-1",
@@ -324,7 +324,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the letter Waw (و)",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching Swahili Ajami. Teach Mim (م), Nun (ن), and Waw (و). Connect each to common Swahili words: 'mama', 'nane', 'wewe'. Gently correct mispronunciations.",
+      "Teach Mim (م), Nun (ن), and Waw (و) one at a time, connecting each to a familiar Swahili word ('mama', 'nane', 'wewe') before introducing the next. If the learner mispronounces one, name exactly what was off, model it again, and have them retry immediately.",
     activities: [
       {
         id: "sw-act-3",
@@ -358,7 +358,7 @@ export const LESSONS: Lesson[] = [
       "Read simple marked letters like مَ and مِ",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching Swahili Ajami vowel marks. Show how fatha, kasra, and damma turn م into 'ma', 'mi', 'mu'. Swahili loves open syllables, so drill consonant+vowel combinations rhythmically.",
+      "Introduce fatha, kasra, and damma one at a time, showing how each turns م into 'ma', 'mi', or 'mu'. Swahili favors open syllables, so drill each new combination rhythmically before layering on the next, and have the learner echo each one back.",
     activities: [
       {
         id: "sw-act-5",
@@ -383,7 +383,7 @@ export const LESSONS: Lesson[] = [
     stage: 2,
     goals: ["Read consonant + vowel syllables fluently"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. Drill the learner on reading syllables like با (ba), ما (ma), نا (na). Mix them up and increase speed slowly. Encourage the learner to clap the syllable rhythm like a Swahili song.",
+      "Drill the learner on reading با (ba), ما (ma), نا (na) one syllable at a time before mixing them up, increasing speed gradually. Invite them to clap the rhythm like a Swahili song, and always end a turn by asking for the next syllable.",
     activities: [
       {
         id: "sw-act-7",
@@ -409,7 +409,7 @@ export const LESSONS: Lesson[] = [
     stage: 2,
     goals: ["Read the word 'mama' (mother) in Ajami script"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. Guide the learner to read مَامَا ('mama' — mother) letter by letter, then as a whole word. Celebrate this milestone — their first Swahili word in Ajami.",
+      "Guide the learner through مَامَا ('mama' — mother) one letter at a time, then have them blend it into the full word themselves. When they read it, celebrate this milestone with specific, genuine praise — their first Swahili word in Ajami.",
     activities: [
       {
         id: "sw-act-9",
@@ -441,7 +441,7 @@ export const LESSONS: Lesson[] = [
     stage: 2,
     goals: ["Read and pronounce 'salama' (peace/safe) in Ajami"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. Teach the learner to read سَلَامَا ('salama'). Explain its cultural role in Swahili greetings and have them practice greeting you with it.",
+      "Teach سَلَامَا ('salama') one syllable at a time, then explain its role in Swahili greetings. Once they can read it, invite them to greet you with it out loud, and respond warmly as if it were a real greeting.",
     activities: [
       {
         id: "sw-act-11",
@@ -479,7 +479,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the letter Ta (ت)",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching a beginner Wolofal (Wolof Ajami). Focus on Alif, Ba, and Ta. Relate the sounds to familiar Wolof words like 'baay'. Keep instructions brief and encouraging.",
+      "Introduce Alif, Ba, and Ta one at a time, relating each to a familiar Wolof word like 'baay' before moving on. Keep each turn short, and vary your encouragement rather than repeating the same phrase.",
     activities: [
       {
         id: "wo-act-1",
@@ -515,7 +515,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the letter Mim (م)",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching Wolofal. Teach Sin (س), Lam (ل), and Mim (م). Connect them to Wolof words like 'salaam' and 'lekk'. Gently correct mispronunciations with simple comparisons.",
+      "Teach Sin (س), Lam (ل), and Mim (م) one at a time, connecting each to a familiar Wolof word ('salaam', 'lekk') before introducing the next. If the learner mispronounces one, name exactly what was off and have them retry right away.",
     activities: [
       {
         id: "wo-act-3",
@@ -549,7 +549,7 @@ export const LESSONS: Lesson[] = [
       "Recognize the Wolofal letter for the ŋ sound",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching Wolofal. Explain that Wolof has sounds (ñ as in 'ñam', ŋ as in 'ŋaam') that standard Arabic letters cannot write, so Wolofal uses letters with extra dots. Model each sound slowly and let the learner imitate.",
+      "Explain that Wolof has sounds (ñ as in 'ñam', ŋ as in 'ŋaam') standard Arabic letters can't write, so Wolofal marks them with extra dots. Model one sound at a time slowly, let the learner imitate it, and confirm before introducing the second sound.",
     activities: [
       {
         id: "wo-act-5",
@@ -577,7 +577,7 @@ export const LESSONS: Lesson[] = [
       "Read simple marked letters like لَ and لِ",
     ],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor teaching Wolofal vowel marks. Show how fatha, kasra, and damma turn ل into 'la', 'li', 'lu'. Drill combinations at a comfortable pace and celebrate correct reads.",
+      "Introduce fatha, kasra, and damma one at a time, showing how each turns ل into 'la', 'li', or 'lu'. Drill each new combination at a comfortable pace before adding the next, and vary how you celebrate correct reads.",
     activities: [
       {
         id: "wo-act-7",
@@ -602,7 +602,7 @@ export const LESSONS: Lesson[] = [
     stage: 2,
     goals: ["Read the word 'baay' (father) in Wolofal script"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. Guide the learner to read بَاي ('baay' — father) letter by letter, then as a whole word. Celebrate this milestone — their first Wolof word in Ajami script.",
+      "Guide the learner through بَاي ('baay' — father) one letter at a time, then have them blend it into the whole word. When they read it, mark this milestone with specific, genuine praise — their first Wolof word in Ajami script.",
     activities: [
       {
         id: "wo-act-9",
@@ -634,7 +634,7 @@ export const LESSONS: Lesson[] = [
     stage: 2,
     goals: ["Read and pronounce 'salaam' (peace) in Wolofal"],
     aiTeacherPrompt:
-      "You are a supportive Ajami tutor. Teach the learner to read سَلَام ('salaam'). Explain its role in Wolof greetings ('salaam aleekum') and have them practice greeting you with it.",
+      "Teach سَلَام ('salaam') one syllable at a time, then explain its role in Wolof greetings ('salaam aleekum'). Once they can read it, invite them to greet you with it, and respond warmly as if it were a real greeting.",
     activities: [
       {
         id: "wo-act-11",

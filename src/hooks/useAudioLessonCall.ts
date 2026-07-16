@@ -58,6 +58,18 @@ export function useAudioLessonCall({
     callRef.current = call;
   }, [client, call]);
 
+  // Flipped false by the unmount cleanup below. start() checks this after
+  // every await so it never joins/enables the mic/sets state once the
+  // component is gone — see H1 in prompts/19-self-audit.md.
+  const mountedRef = useRef(true);
+
+  // Ref-based in-flight guard: setState-driven `disabled={busy}` on the
+  // start button only takes effect after a re-render, so two taps in the
+  // same event-loop tick could both run start() to completion and join two
+  // agent sessions onto the same call. This ref is synchronous — see H2 in
+  // prompts/19-self-audit.md.
+  const startGuardRef = useRef(false);
+
   const teardown = useCallback(async () => {
     const activeCall = callRef.current;
     if (activeCall && activeCall.state.callingState !== CallingState.LEFT) {
@@ -73,12 +85,36 @@ export function useAudioLessonCall({
   // Guards against a dangling call/socket if the learner navigates away
   // without pressing "End Call".
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
       teardown();
     };
   }, [teardown]);
 
   const start = useCallback(async () => {
+    if (startGuardRef.current) return;
+    startGuardRef.current = true;
+
+    // Tears down whatever was created so far and aborts start() once the
+    // component has unmounted mid-flight. Uses the local variables (not
+    // clientRef/callRef) because those refs only sync via an effect that
+    // won't fire again after unmount.
+    const abortIfUnmounted = async (
+      callToLeave?: Call,
+      clientToDisconnect?: StreamVideoClient
+    ): Promise<boolean> => {
+      if (mountedRef.current) return false;
+      if (callToLeave && callToLeave.state.callingState !== CallingState.LEFT) {
+        await callToLeave.leave().catch((err) => console.error("Failed to leave call", err));
+      }
+      await clientToDisconnect?.disconnectUser().catch((err) =>
+        console.error("Failed to disconnect Stream user", err)
+      );
+      startGuardRef.current = false;
+      return true;
+    };
+
     setErrorMessage(undefined);
     setTeacherJoinFailed(false);
     setStatus("connecting");
@@ -88,6 +124,7 @@ export function useAudioLessonCall({
 
     try {
       const session = await fetchStreamSession(getClerkSessionToken, sessionParams);
+      if (await abortIfUnmounted()) return;
       setTeacherJoinFailed(session.teacherJoinFailed);
 
       const user: User = {
@@ -106,6 +143,7 @@ export function useAudioLessonCall({
         token: session.token,
         tokenProvider,
       });
+      if (await abortIfUnmounted(undefined, videoClient)) return;
       setClient(videoClient);
 
       setStatus("joining");
@@ -113,24 +151,30 @@ export function useAudioLessonCall({
         reuseInstance: true,
       });
       await activeCall.join({ create: true });
+      if (await abortIfUnmounted(activeCall, videoClient)) return;
 
       // Audio-only lesson: keep video off, make sure the mic is live.
       await activeCall.camera.disable().catch(() => undefined);
       await activeCall.microphone
         .enable()
         .catch((err) => console.error("Failed to enable microphone", err));
+      if (await abortIfUnmounted(activeCall, videoClient)) return;
 
       setCall(activeCall);
       setStatus("joined");
     } catch (err) {
       console.error("Failed to start the lesson call", err);
-      setErrorMessage(err instanceof Error ? err.message : "Something went wrong");
-      setStatus("error");
+      if (mountedRef.current) {
+        setErrorMessage(err instanceof Error ? err.message : "Something went wrong");
+        setStatus("error");
+      }
+      startGuardRef.current = false;
     }
   }, [getToken, lessonId, languageId, lessonTitle, userName, userImage]);
 
   const endCall = useCallback(async () => {
     await teardown();
+    startGuardRef.current = false;
     setStatus("ended");
   }, [teardown]);
 
