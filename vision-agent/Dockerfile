@@ -19,4 +19,4 @@ EXPOSE 8000
 # whatever port the container actually binds — the fixed EXPOSE 8000 above is
 # only documentation. Shell form is required so $PORT is expanded; falls back
 # to 8000 for `docker run` without an explicit PORT (e.g. local testing).
-CMD ["sh", "-c", "uv run --no-dev agent.py serve --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "-c", ".venv/bin/python agent.py serve --host 0.0.0.0 --port ${PORT:-8000}"]
