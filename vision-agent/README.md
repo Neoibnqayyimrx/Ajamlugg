@@ -98,3 +98,13 @@ wrapping up and ending it) would be the better long-term fix.
 docker build -t vision-agent .
 docker run --env-file .env -p 8000:8000 vision-agent
 ```
+
+## Deploying to Render
+
+This service deploys as a Docker web service on Render, built from `vision-agent/Dockerfile`. Full environment variable matrix and first-deployment order across all three services (this agent, EAS Hosting, the mobile app) live in [DEPLOYMENT.md](../DEPLOYMENT.md) at the repo root — this section only covers what's specific to this service's Render setup.
+
+1. **New Web Service** → connect the repo → set **Root Directory** to `vision-agent` and **Runtime** to **Docker** (Render will pick up `Dockerfile` automatically).
+2. **Health Check Path**: `/health` — the `vision-agents` HTTP server (`vision_agents.core.runner.http.api`) already exposes this (and `/ready`, which additionally checks the agent launcher is ready to accept new sessions); no code was needed here.
+3. **Port**: leave Render's `PORT` env var alone — it's injected automatically and the container's `CMD` binds to it (`--port ${PORT:-8000}`, falling back to `8000` only when `PORT` isn't set, e.g. local `docker run`). Do not hardcode a port in Render's dashboard.
+4. **Environment variables** (Render → your service → Environment): `GEMINI_API_KEY`, `STREAM_API_KEY`, `STREAM_API_SECRET`, `VISION_AGENT_SECRET`, `LESSON_API_BASE_URL`. All five are required — the process now fails fast at startup with a log line naming exactly which ones are missing (`_fail_fast_on_missing_env` in `agent.py`) rather than failing confusingly on the first session. `LESSON_API_BASE_URL` must be the deployed EAS Hosting URL (from `eas deploy`), not `localhost` — there is no code-level default for it.
+5. Deploys happen from Render's own git integration (auto-deploy on push to the connected branch, or "Manual Deploy" in the dashboard) — there's no separate CLI deploy step for this service.

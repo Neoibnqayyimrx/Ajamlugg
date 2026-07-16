@@ -32,7 +32,17 @@ const CALL_TYPE = "default";
  * waiting for a teacher that will never join.
  */
 async function requestTeacherJoin(callId: string): Promise<boolean> {
-  if (!VISION_AGENT_URL || !VISION_AGENT_SECRET) return false;
+  if (!VISION_AGENT_URL || !VISION_AGENT_SECRET) {
+    // Not thrown as a 500: the learner can still have their audio lesson
+    // call without the AI teacher (see the docstring above). But silently
+    // returning false here would mean a missing/misconfigured env var in
+    // production never shows up anywhere — every call would just quietly
+    // never get a teacher with no trace in the logs.
+    console.error(
+      "VISION_AGENT_URL/VISION_AGENT_SECRET is not configured — the AI teacher will not join any calls."
+    );
+    return false;
+  }
 
   try {
     const response = await fetch(`${VISION_AGENT_URL}/calls/${callId}/sessions`, {

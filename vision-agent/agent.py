@@ -31,8 +31,23 @@ load_dotenv()
 
 logger = logging.getLogger("ajami_teacher")
 
-LESSON_API_BASE_URL = os.getenv("LESSON_API_BASE_URL", "http://localhost:8081").rstrip("/")
+LESSON_API_BASE_URL = (os.getenv("LESSON_API_BASE_URL") or "").rstrip("/")
 HAUSA_LANGUAGE_ID = "hausa-ajami"
+
+# Every var this service needs to actually function — checked by
+# _fail_fast_on_missing_env() before the server binds, so a missing/blank
+# value fails loudly at startup instead of surfacing later as an opaque
+# error the first time a session tries to use it (e.g. a bare ValueError
+# from the Stream/Gemini SDKs, or lessons silently fetched from
+# LESSON_API_BASE_URL's baked-in default of http://localhost:8081, which
+# doesn't exist in production).
+_REQUIRED_ENV_VARS = (
+    "GEMINI_API_KEY",
+    "STREAM_API_KEY",
+    "STREAM_API_SECRET",
+    "VISION_AGENT_SECRET",
+    "LESSON_API_BASE_URL",
+)
 
 # Shared secret gating every vision-agent HTTP endpoint (session start/close/
 # view/metrics) — must match VISION_AGENT_SECRET in the root .env, which
@@ -622,5 +637,23 @@ runner = Runner(
 )
 
 
+def _fail_fast_on_missing_env() -> None:
+    """Refuse to start with incomplete config instead of failing confusingly
+    later. Only runs when agent.py is executed directly (`uv run agent.py
+    run`/`serve`) — importing agent.py for tests must not require real
+    secrets to be set (see tests/test_captions.py, tests/test_interrupt.py,
+    which construct everything with fakes).
+    """
+    missing = [name for name in _REQUIRED_ENV_VARS if not os.getenv(name)]
+    if missing:
+        logger.error(
+            "Missing required environment variable(s): %s — set them before "
+            "starting the agent (see .env.example).",
+            ", ".join(missing),
+        )
+        raise SystemExit(1)
+
+
 if __name__ == "__main__":
+    _fail_fast_on_missing_env()
     runner.cli()

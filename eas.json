@@ -7,6 +7,7 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "environment": "development",
       "android": {
         "buildType": "apk"
       },
@@ -14,19 +15,22 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "production",
       "android": {
         "buildType": "apk"
       },
       "node": "25.2.1"
     },
     "preview-ios-sim": {
+      "environment": "production",
       "ios": {
         "simulator": true
       },
       "node": "25.2.1"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "environment": "production"
     }
   },
   "submit": {
