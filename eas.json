@@ -11,7 +11,8 @@
       "android": {
         "buildType": "apk"
       },
-      "node": "25.2.1"
+      "node": "25.2.1",
+      "channel": "development"
     },
     "preview": {
       "distribution": "internal",
@@ -19,18 +20,21 @@
       "android": {
         "buildType": "apk"
       },
-      "node": "25.2.1"
+      "node": "25.2.1",
+      "channel": "preview"
     },
     "preview-ios-sim": {
       "environment": "production",
       "ios": {
         "simulator": true
       },
-      "node": "25.2.1"
+      "node": "25.2.1",
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
-      "environment": "production"
+      "environment": "production",
+      "channel": "production"
     }
   },
   "submit": {

@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.Ajamlugg",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "adaptiveIcon": {
@@ -26,7 +27,30 @@
       "permissions": [
         "RECORD_AUDIO",
         "MODIFY_AUDIO_SETTINGS",
-        "BLUETOOTH_CONNECT"
+        "BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.WAKE_LOCK",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.WAKE_LOCK",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ]
     },
     "web": {
@@ -57,7 +81,11 @@
       ],
       [
         "expo-build-properties",
-        { "android": { "minSdkVersion": 24 } }
+        {
+          "android": {
+            "minSdkVersion": 24
+          }
+        }
       ]
     ],
     "experiments": {
@@ -69,6 +97,12 @@
       "eas": {
         "projectId": "5625f730-8280-4808-bc26-b4556b508047"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5625f730-8280-4808-bc26-b4556b508047"
     }
   }
 }
