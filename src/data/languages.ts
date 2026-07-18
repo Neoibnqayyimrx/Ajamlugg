@@ -16,6 +16,7 @@ export const LANGUAGES: Language[] = [
     script: "سَـ",
     color: "#3B82F6",
     description: "Learn to read and write Swahili using the Arabic script.",
+    locked: true,
   },
   {
     id: "wolof-ajami",
@@ -24,5 +25,24 @@ export const LANGUAGES: Language[] = [
     script: "وَـ",
     color: "#8B5CF6",
     description: "Learn to read and write the Wolof language using the Arabic script (Wolofal).",
+    locked: true,
+  },
+  {
+    id: "yoruba-ajami",
+    name: "Yoruba Ajami",
+    /** يَـ — Yoruba written in Ajami/Arabic script */
+    script: "يَـ",
+    color: "#EC4899",
+    description: "Learn to read and write the Yoruba language using the Arabic script.",
+    locked: true,
+  },
+  {
+    id: "fulfulde-ajami",
+    name: "Fulfulde Ajami",
+    /** فَـ — Fulfulde written in Ajami/Arabic script */
+    script: "فَـ",
+    color: "#F59E0B",
+    description: "Learn to read and write the Fulfulde language using the Arabic script.",
+    locked: true,
   },
 ];

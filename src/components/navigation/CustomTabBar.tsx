@@ -15,6 +15,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Animated, LayoutChangeEvent, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useLanguageStore } from "@/store/useLanguageStore";
+
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const ACTIVE_BG = "#1B6B3A";
 const ACTIVE_ICON_COLOR = "#FFFFFF";
@@ -57,10 +59,12 @@ const TAB_CONFIG: Record<
 };
 
 // Hidden screens (href: null) that should keep the tab bar visible with a
-// parent tab highlighted. Hidden screens NOT listed here (e.g. "languages")
-// hide the tab bar entirely.
+// parent tab highlighted. Hidden screens NOT listed here hide the tab bar
+// entirely. "languages" is listed but still hidden during onboarding — see
+// isLanguagesOnboarding below, which overrides this for that one case.
 const PARENT_TAB: Record<string, string> = {
   "audio-lesson": "learn",
+  languages: "profile",
 };
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ export default function CustomTabBar({
   navigation,
 }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const selectedLanguageId = useLanguageStore((s) => s.selectedLanguageId);
 
   // Routes without a TAB_CONFIG entry (e.g. "languages", href: null) are
   // hidden screens — they must not render a tab button. state.routes still
@@ -78,11 +83,19 @@ export default function CustomTabBar({
     (route) => TAB_CONFIG[route.name] !== undefined
   );
   const focusedRoute = state.routes[state.index];
+  // First-time onboarding traps the user on "languages" until they pick a
+  // language (see the redirect effect in (home)/_layout.tsx) — the tab bar
+  // must stay hidden there, even though PARENT_TAB maps "languages" to
+  // "profile" for the ordinary "change language" case.
+  const isLanguagesOnboarding =
+    focusedRoute.name === "languages" && selectedLanguageId === null;
   // The tab to highlight: the focused route itself, or — for hidden screens
   // like the audio lesson — the parent tab it belongs to.
-  const highlightName = TAB_CONFIG[focusedRoute.name]
-    ? focusedRoute.name
-    : PARENT_TAB[focusedRoute.name];
+  const highlightName = isLanguagesOnboarding
+    ? undefined
+    : TAB_CONFIG[focusedRoute.name]
+      ? focusedRoute.name
+      : PARENT_TAB[focusedRoute.name];
   const activeIndex = visibleRoutes.findIndex(
     (route) => route.name === highlightName
   );

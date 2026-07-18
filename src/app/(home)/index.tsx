@@ -1,7 +1,8 @@
 // Home screen migrated to NativeWind styling
 import { useUser } from "@clerk/clerk-expo";
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import images from "@/constants/images";
@@ -295,10 +296,15 @@ function NextUpBanner({ onPress }: { onPress: () => void }) {
 
 export default function HomeScreen() {
   const { user } = useUser();
+  const router = useRouter();
   const { selectedLanguageId } = useLanguageStore();
 
   const firstName = user?.firstName ?? "Learner";
   const avatarUrl = user?.imageUrl;
+
+  const handleNotificationsPress = () => {
+    Alert.alert("Notifications", "Coming soon!");
+  };
 
   const language =
     LANGUAGES.find((l) => l.id === selectedLanguageId) ?? LANGUAGES[0];
@@ -325,17 +331,17 @@ export default function HomeScreen() {
           </View>
           <View className="flex-row items-center gap-2">
             <StreakBadge days={STREAK_DAYS} />
-            <BellButton onPress={() => {}} />
+            <BellButton onPress={handleNotificationsPress} />
           </View>
         </View>
         <DailyGoalCard xp={XP_TODAY} goal={XP_GOAL} />
         <ContinueLearningCard
           languageName={language.name}
           unitOrder={currentUnit.order}
-          onPress={() => {}}
+          onPress={() => router.push("/(home)/learn")}
         />
-        <TodaysPlanCard onViewAll={() => {}} />
-        <NextUpBanner onPress={() => {}} />
+        <TodaysPlanCard onViewAll={() => router.push("/(home)/learn")} />
+        <NextUpBanner onPress={() => router.push("/(home)/audio-lesson")} />
       </ScrollView>
     </SafeAreaView>
   );

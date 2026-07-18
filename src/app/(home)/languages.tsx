@@ -4,11 +4,13 @@
  * Language selection screen.
  *
  * Two modes:
- *  - "onboarding" (no language stored yet): close button hidden, Confirm
- *    calls router.replace("/(home)") so the user cannot go back to an
- *    empty-language state.
- *  - "change language" (accessed from home header): close button shown,
- *    Confirm calls router.back() as before.
+ *  - "onboarding" (no language stored yet): the tab bar stays hidden (see
+ *    isLanguagesOnboarding in CustomTabBar.tsx) and Confirm calls
+ *    router.replace("/(home)") — there is no way out until a language is
+ *    picked, since the (home)/_layout.tsx guard would just redirect back.
+ *  - "change language" (accessed from Profile): the tab bar is visible,
+ *    highlighting Profile, and doubles as the way out — no in-screen close
+ *    button. Confirm calls router.back() as before.
  */
 
 import { LANGUAGES } from "@/data/languages";
@@ -38,7 +40,8 @@ export default function LanguageSelectionScreen() {
   const [query, setQuery] = useState("");
   const inputRef = useRef<TextInput>(null);
 
-  // New user = no language stored yet → hide the close/back button
+  // New user = no language stored yet → tab bar stays hidden (see
+  // isLanguagesOnboarding in CustomTabBar.tsx) until Confirm is pressed
   const isOnboarding = selectedLanguageId === null;
 
   const filtered = useMemo(() => {
@@ -66,22 +69,9 @@ export default function LanguageSelectionScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#FAF6EF" }}>
-      {/* ── Header ── */}
-      <View className="px-5 pt-2.5 pb-2.5 flex-row items-center">
-        {/* Hide close button during onboarding — going back has no valid destination */}
-        {!isOnboarding && (
-          <TouchableOpacity
-            className="w-10 h-10 items-center justify-center -ml-2.5"
-            onPress={() => router.back()}
-          >
-            <Ionicons name="close" size={24} color="#1A1A2E" />
-          </TouchableOpacity>
-        )}
-      </View>
-
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="px-5 pb-24"
+        contentContainerClassName="px-5 pt-4 pb-24"
         keyboardShouldPersistTaps="handled"
       >
         {/* ── Hero Image ── */}
@@ -145,12 +135,14 @@ export default function LanguageSelectionScreen() {
           <View className="gap-3">
             {filtered.map((lang) => {
               const isSelected = localSelectedId === lang.id;
+              const isLocked = lang.locked === true;
               return (
                 <TouchableOpacity
                   key={lang.id}
+                  disabled={isLocked}
                   className={`bg-white rounded-[20px] p-4 flex-row items-center justify-between border-2 ${
                     isSelected ? "border-emerald bg-emerald-50" : "border-border"
-                  }`}
+                  } ${isLocked ? "opacity-50" : ""}`}
                   activeOpacity={0.8}
                   onPress={() => setLocalSelectedId(lang.id as LanguageId)}
                 >
@@ -169,13 +161,22 @@ export default function LanguageSelectionScreen() {
                     </View>
 
                     <View className="flex-1">
-                      <Text
-                        className={`font-poppins-bold text-h4 mb-0.5 ${
-                          isSelected ? "text-emerald-700" : "text-navy-900"
-                        }`}
-                      >
-                        {lang.name}
-                      </Text>
+                      <View className="flex-row items-center gap-2 mb-0.5">
+                        <Text
+                          className={`font-poppins-bold text-h4 ${
+                            isSelected ? "text-emerald-700" : "text-navy-900"
+                          }`}
+                        >
+                          {lang.name}
+                        </Text>
+                        {isLocked && (
+                          <View className="bg-slate-100 rounded-full px-2 py-0.5">
+                            <Text className="font-poppins-medium text-[10px] text-slate-500">
+                              Coming soon
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                       <Text
                         className={`font-poppins text-body-sm leading-[18px] ${
                           isSelected ? "text-emerald-900" : "text-text-secondary"
@@ -187,16 +188,22 @@ export default function LanguageSelectionScreen() {
                     </View>
                   </View>
 
-                  {/* Radio button */}
-                  <View
-                    className={`w-6 h-6 rounded-full border-2 items-center justify-center ml-3 ${
-                      isSelected ? "border-emerald" : "border-slate-300"
-                    }`}
-                  >
-                    {isSelected && (
-                      <View className="w-3 h-3 rounded-full bg-emerald" />
-                    )}
-                  </View>
+                  {/* Radio button, or a lock icon for languages not yet available */}
+                  {isLocked ? (
+                    <View className="w-6 h-6 items-center justify-center ml-3">
+                      <Ionicons name="lock-closed" size={16} color="#94A3B8" />
+                    </View>
+                  ) : (
+                    <View
+                      className={`w-6 h-6 rounded-full border-2 items-center justify-center ml-3 ${
+                        isSelected ? "border-emerald" : "border-slate-300"
+                      }`}
+                    >
+                      {isSelected && (
+                        <View className="w-3 h-3 rounded-full bg-emerald" />
+                      )}
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}

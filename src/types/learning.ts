@@ -2,7 +2,12 @@
  * Core types for the Ajami learning system.
  */
 
-export type LanguageId = "hausa-ajami" | "swahili-ajami" | "wolof-ajami";
+export type LanguageId =
+  | "hausa-ajami"
+  | "swahili-ajami"
+  | "wolof-ajami"
+  | "yoruba-ajami"
+  | "fulfulde-ajami";
 
 export interface Language {
   id: LanguageId;
@@ -12,6 +17,8 @@ export interface Language {
   /** Accent color for the language card */
   color: string;
   description: string;
+  /** Not yet available to learn — shown dimmed and non-selectable */
+  locked?: boolean;
 }
 
 export type ActivityType =
