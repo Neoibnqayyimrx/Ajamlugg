@@ -88,26 +88,15 @@ function UnitHero({
   unit,
   completedCount,
   totalCount,
-  onBack,
-  canGoBack,
 }: {
   unit: Unit;
   completedCount: number;
   totalCount: number;
-  onBack: () => void;
-  canGoBack: boolean;
 }) {
   return (
     <View className="px-5 pt-2">
-      {/* Top bar: back + bookmark */}
-      <View className="flex-row items-center justify-between mb-1">
-        {canGoBack ? (
-          <Pressable onPress={onBack} className="w-10 h-10 items-center justify-center -ml-2.5">
-            <Ionicons name="chevron-back" size={26} color={C.green} />
-          </Pressable>
-        ) : (
-          <View className="w-10 h-10" />
-        )}
+      {/* Top bar: bookmark only — Learn is a tab, exit via the tab bar */}
+      <View className="flex-row items-center justify-end mb-1">
         <Pressable className="w-10 h-10 items-center justify-center -mr-2.5">
           <Ionicons name="bookmark-outline" size={24} color={C.green} />
         </Pressable>
@@ -149,10 +138,12 @@ function UnitHero({
 function UnitChips({
   units,
   activeUnitId,
+  completedIds,
   onSelect,
 }: {
   units: Unit[];
   activeUnitId: string;
+  completedIds: string[];
   onSelect: (unit: Unit) => void;
 }) {
   if (units.length < 2) return null;
@@ -164,16 +155,27 @@ function UnitChips({
       contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
       className="mt-4 grow-0"
     >
-      {units.map((unit) => {
+      {units.map((unit, index) => {
         const active = unit.id === activeUnitId;
+        // A unit unlocks once every lesson in the *previous* unit (by
+        // position in this sorted list) is complete. The first unit is
+        // always open.
+        const previousUnit = units[index - 1];
+        const isLocked =
+          previousUnit !== undefined &&
+          !previousUnit.lessonIds.every((id) => completedIds.includes(id));
         return (
           <Pressable
             key={unit.id}
+            disabled={isLocked}
             onPress={() => onSelect(unit)}
-            className={`px-4 py-2 rounded-full border ${
+            className={`flex-row items-center gap-1.5 px-4 py-2 rounded-full border ${
               active ? "bg-[#1B6B3A] border-[#1B6B3A]" : "bg-[#FFFFFF] border-[#EDE8E0]"
-            }`}
+            } ${isLocked ? "opacity-50" : ""}`}
           >
+            {isLocked && (
+              <Ionicons name="lock-closed" size={12} color={C.textSub} />
+            )}
             <Text
               className={`font-poppins-semibold text-[13px] ${
                 active ? "text-[#FFFFFF]" : "text-[#6B7280]"
@@ -417,13 +419,12 @@ export default function LearnScreen() {
           unit={activeUnit}
           completedCount={completedCount}
           totalCount={lessons.length}
-          onBack={() => router.back()}
-          canGoBack={router.canGoBack()}
         />
 
         <UnitChips
           units={units}
           activeUnitId={activeUnit.id}
+          completedIds={completedIds}
           onSelect={handleSelectUnit}
         />
 
