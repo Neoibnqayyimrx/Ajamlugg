@@ -84,17 +84,28 @@ function IdentityCard({
 function StatTile({
   icon,
   iconColor,
+  scriptChar,
   value,
   label,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;
   iconColor: string;
+  scriptChar?: string;
   value: string | number;
   label: string;
 }) {
   return (
     <View className="flex-1 items-center bg-[#FFFFFF] rounded-2xl py-4 border border-[#EDE8E0] shadow-sm gap-1">
-      <Ionicons name={icon} size={22} color={iconColor} />
+      {scriptChar ? (
+        <Text
+          className="font-poppins-bold text-2xl"
+          style={{ color: iconColor }}
+        >
+          {scriptChar}
+        </Text>
+      ) : (
+        <Ionicons name={icon!} size={22} color={iconColor} />
+      )}
       <Text className="font-poppins-bold text-[#1A1A1A] text-lg">{value}</Text>
       <Text className="font-poppins-regular text-[#6B7280] text-xs text-center px-1">
         {label}
@@ -107,12 +118,12 @@ function StatsRow({
   streakDays,
   xpToday,
   xpGoal,
-  languageName,
+  language,
 }: {
   streakDays: number;
   xpToday: number;
   xpGoal: number;
-  languageName: string;
+  language: { name: string; script: string; color: string };
 }) {
   return (
     <View className="flex-row gap-3">
@@ -129,10 +140,10 @@ function StatsRow({
         label="XP today"
       />
       <StatTile
-        icon="language"
-        iconColor={C.green}
+        scriptChar={language.script}
+        iconColor={language.color}
         value=""
-        label={languageName}
+        label={language.name}
       />
     </View>
   );
@@ -275,7 +286,7 @@ export default function ProfileScreen() {
           streakDays={STREAK_DAYS}
           xpToday={XP_TODAY}
           xpGoal={XP_GOAL}
-          languageName={language.name}
+          language={language}
         />
         <SettingsCard
           captionsEnabled={captionsEnabled}
