@@ -49,13 +49,6 @@ example
 .claude/
 CLAUDE.md
 AGENTS.md
-prompts/
-prompt_material/
-
-# AI workflow files - local only
-.agents/
-.claude/
-CLAUDE.md
-AGENTS.md
+DEPLOYMENT.md
 prompts/
 prompt_material/
