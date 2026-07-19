@@ -44,11 +44,3 @@ example
 /ios
 /android
 
-# AI workflow files - local only
-.agents/
-.claude/
-CLAUDE.md
-AGENTS.md
-DEPLOYMENT.md
-prompts/
-prompt_material/
