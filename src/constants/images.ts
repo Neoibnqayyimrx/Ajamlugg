@@ -8,15 +8,15 @@
 
 const images = {
   // ── Mascots ───────────────────────────────────────────────────────────────
-  mascotLogo:    require("@/assets/images/mascot-logo.png"),
-  mascotAuth:    require("@/assets/images/mascot-auth.png"),
-  mascotWelcome: require("@/assets/images/mascot-welcome.png"),
+  mascotLogo:    require("@/assets/images/mascot-logo.webp"),
+  mascotAuth:    require("@/assets/images/mascot-auth.webp"),
+  mascotWelcome: require("@/assets/images/mascot-welcome.webp"),
 
   // ── Learning visuals ──────────────────────────────────────────────────────
-  ajam:          require("@/assets/images/ajam.png"),
-  palace:        require("@/assets/images/palace.png"),
-  treasure:      require("@/assets/images/treasure.png"),
-  streakFire:    require("@/assets/images/streak-fire.png"),
+  ajam:          require("@/assets/images/ajam.webp"),
+  palace:        require("@/assets/images/palace.webp"),
+  treasure:      require("@/assets/images/treasure.webp"),
+  streakFire:    require("@/assets/images/streak-fire.webp"),
 
   // ── App icons ─────────────────────────────────────────────────────────────
   icon:          require("@/assets/images/icon.png"),

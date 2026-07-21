@@ -72,7 +72,7 @@ export default function SignInScreen() {
               Continue your journey ✨
             </Text>
             <Image
-              source={require("@/assets/images/mascot-auth.png")}
+              source={require("@/assets/images/mascot-auth.webp")}
               className="w-full h-64 mt-2"
               resizeMode="contain"
               style={{ marginBottom: -24 }}

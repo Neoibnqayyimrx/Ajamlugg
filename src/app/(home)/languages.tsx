@@ -80,7 +80,7 @@ export default function LanguageSelectionScreen() {
           style={{ boxShadow: "0 8px 24px rgba(14, 159, 110, 0.15)" } as any}
         >
           <Image
-            source={require("@/assets/images/ajam.png")}
+            source={require("@/assets/images/ajam.webp")}
             className="w-full h-full"
             resizeMode="cover"
           />

@@ -17,7 +17,7 @@ export default function OnboardingScreen() {
       {/* ── Header ── */}
       <View className="flex-row items-center gap-x-2.5 pt-2 mb-5">
         <Image
-          source={require("../../../assets/images/mascot-logo.png")}
+          source={require("../../../assets/images/mascot-logo.webp")}
           className="w-11 h-11"
           resizeMode="contain"
         />
@@ -58,7 +58,7 @@ export default function OnboardingScreen() {
         </View>
 
         <Image
-          source={require("../../../assets/images/mascot-welcome.png")}
+          source={require("../../../assets/images/mascot-welcome.webp")}
           className="w-[220px] h-[300px] z-[1]"
           resizeMode="contain"
         />
