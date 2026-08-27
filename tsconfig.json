@@ -2,6 +2,13 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    // TypeScript 6 no longer pulls every node_modules/@types package into the
+    // global scope automatically, so the Jest globals (describe/it/expect)
+    // have to be requested by name. Types reached through an `import` — React,
+    // Expo, and the rest — are unaffected and do not belong in this list.
+    "types": [
+      "jest"
+    ],
     "paths": {
       "@/*": [
         "./src/*"

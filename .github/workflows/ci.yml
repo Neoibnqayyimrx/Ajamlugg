@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    name: App — typecheck, lint & tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      # Content grading, scoring and validation run entirely on-device, so
+      # these tests are the check that a learner can finish a lesson with no
+      # backend and no AI service reachable. They must never need the network.
+      - run: npm test
+
+  agent:
+    name: vision-agent — tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vision-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --frozen
+      # Deselect the `integration` marker: those tests call the real Gemini
+      # API, so they need a funded key, cost quota on every push, and fail
+      # non-deterministically when the daily limit is hit. They currently
+      # self-skip in CI only because GEMINI_API_KEY happens to be unset —
+      # deselecting is explicit and stays correct if a key is ever added as
+      # a repo secret. Run them deliberately instead:
+      #     uv run pytest -m integration
+      - run: uv run pytest -m "not integration"
