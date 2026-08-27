@@ -67,6 +67,10 @@ const PARENT_TAB: Record<string, string> = {
   languages: "profile",
 };
 
+// "lesson" (the lesson player) is intentionally absent: an in-progress lesson
+// is full-screen, so the tab bar hides. The player has its own close button,
+// which exits deliberately rather than by a mis-tap mid-exercise.
+
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function CustomTabBar({
   state,

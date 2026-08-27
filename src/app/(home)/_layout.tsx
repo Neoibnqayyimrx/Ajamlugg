@@ -13,6 +13,7 @@
  */
 
 import CustomTabBar from "@/components/navigation/CustomTabBar";
+import { AI_TEACHER_ENABLED } from "@/constants/features";
 import { useLanguageStore } from "@/store/useLanguageStore";
 import { useAuth } from "@clerk/clerk-expo";
 import { Redirect, Tabs, useRouter } from "expo-router";
@@ -81,11 +82,15 @@ export default function HomeLayout() {
           tabBarLabel: "Learn",
         }}
       />
+      {/* Optional extra, off by default. `href: null` hides the tab without
+          unregistering the route, so the screen stays reachable by deep link
+          for testing and returns instantly if the flag is turned on. */}
       <Tabs.Screen
         name="ai-teacher"
         options={{
           title: "AI Teacher",
           tabBarLabel: "AI Teacher",
+          href: AI_TEACHER_ENABLED ? undefined : null,
         }}
       />
       <Tabs.Screen
@@ -110,9 +115,18 @@ export default function HomeLayout() {
           tabBarStyle: { display: "none" },
         }}
       />
-      {/* Hidden — AI Teacher audio lesson, opened from Learn with a lessonId.
-          Not a tab itself; the tab bar stays visible with Learn highlighted
-          (see PARENT_TAB in CustomTabBar). */}
+      {/* Hidden — the lesson player, opened from Learn with a lessonId. Not a
+          tab itself; the tab bar stays visible with Learn highlighted (see
+          PARENT_TAB in CustomTabBar). */}
+      <Tabs.Screen
+        name="lesson"
+        options={{
+          href: null,
+        }}
+      />
+      {/* Hidden — AI Teacher audio lesson. No longer on the learner's path:
+          Learn opens the player above. Kept registered so the optional
+          feature can be re-enabled without restoring routing. */}
       <Tabs.Screen
         name="audio-lesson"
         options={{

@@ -9,20 +9,24 @@ import images from "@/constants/images";
 import { LANGUAGES } from "@/data/languages";
 import { UNITS } from "@/data/units";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import {
+  selectPractisedToday,
+  selectStreakDays,
+  selectXpToday,
+  useProgressStore,
+} from "@/store/useProgressStore";
 
-// Mock progress data
-const STREAK_DAYS = 12;
-const XP_TODAY = 15;
-const XP_GOAL = 20;
-
+// Today's plan. `done` is derived from real progress where we track it —
+// the lesson row flips once the learner finishes any lesson today. The other
+// two rows are for features that don't exist yet (see the Chat / AI Teacher
+// tabs), so they have nothing real to report and stay unchecked.
 const TODAY_PLAN = [
   {
     id: "lesson",
     type: "Lesson",
-    subtitle: "The First Three Letters",
+    subtitle: "Continue where you left off",
     icon: "book" as const,
     iconBg: "#1B6B3A",
-    done: true,
   },
   {
     id: "ai-convo",
@@ -30,7 +34,6 @@ const TODAY_PLAN = [
     subtitle: "Talk about your day",
     icon: "headset" as const,
     iconBg: "#D4A017",
-    done: false,
   },
   {
     id: "vocab",
@@ -38,7 +41,6 @@ const TODAY_PLAN = [
     subtitle: "10 words",
     icon: "chatbubble-ellipses" as const,
     iconBg: "#C4853A",
-    done: false,
   },
 ];
 
@@ -197,9 +199,11 @@ function ContinueLearningCard({
 
 function PlanItem({
   item,
+  done,
   isLast,
 }: {
   item: (typeof TODAY_PLAN)[number];
+  done: boolean;
   isLast: boolean;
 }) {
   return (
@@ -221,11 +225,9 @@ function PlanItem({
         </View>
         <View
           className="w-7 h-7 rounded-full border-2 border-[#D4D4D4] flex items-center justify-center"
-          style={
-            item.done ? { backgroundColor: C.green, borderColor: C.green } : {}
-          }
+          style={done ? { backgroundColor: C.green, borderColor: C.green } : {}}
         >
-          {item.done && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+          {done && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
         </View>
       </View>
       {!isLast && <View className="h-px bg-[#EDE8E0] ml-14" />}
@@ -233,7 +235,13 @@ function PlanItem({
   );
 }
 
-function TodaysPlanCard({ onViewAll }: { onViewAll: () => void }) {
+function TodaysPlanCard({
+  lessonDone,
+  onViewAll,
+}: {
+  lessonDone: boolean;
+  onViewAll: () => void;
+}) {
   return (
     <View>
       <View className="flex-row items-center justify-between mb-3">
@@ -255,6 +263,7 @@ function TodaysPlanCard({ onViewAll }: { onViewAll: () => void }) {
           <PlanItem
             key={item.id}
             item={item}
+            done={item.id === "lesson" && lessonDone}
             isLast={i === TODAY_PLAN.length - 1}
           />
         ))}
@@ -274,20 +283,26 @@ function NextUpBanner({ onPress }: { onPress: () => void }) {
         <Text className="font-poppins-regular text-[#1B6B3A] text-xs">
           Next up
         </Text>
+        {/* This banner used to advertise the AI audio lesson and open the
+            Stream call directly, which put the AI on the learner's main path
+            straight from the home screen. It now points at the lesson list. */}
         <Text className="font-poppins-bold text-[#1A1A1A] text-xl">
-          AI Video Call
+          Continue your lessons
         </Text>
         <Text className="font-poppins-regular text-[#6B7280] text-sm">
-          Practice speaking with AI
+          Pick up where you left off
         </Text>
       </View>
+      {/* The AI teacher is our mascot — not a stock photo of a stranger from
+          a remote avatar service, which was also a blank box when offline. */}
       <View className="relative w-20 h-20">
         <Image
-          source={{ uri: "https://i.pravatar.cc/120?img=12" }}
-          className="w-20 h-20 rounded-full border-2 border-[#FFFFFF]"
+          source={images.mascotLogo}
+          className="w-20 h-20 rounded-full border-2 border-[#FFFFFF] bg-[#FFFFFF]"
+          resizeMode="cover"
         />
         <View className="absolute bottom-0 right-0 w-[30px] h-[30px] rounded-full bg-[#1B6B3A] flex items-center justify-center border-2 border-[#FFFFFF]">
-          <Ionicons name="videocam" size={16} color="#FFFFFF" />
+          <Ionicons name="mic" size={16} color="#FFFFFF" />
         </View>
       </View>
     </Pressable>
@@ -298,6 +313,13 @@ export default function HomeScreen() {
   const { user } = useUser();
   const router = useRouter();
   const { selectedLanguageId } = useLanguageStore();
+
+  // Real, persisted progress — these all start at zero for a new learner and
+  // grow as lessons are finished (see useProgressStore).
+  const streakDays = useProgressStore(selectStreakDays);
+  const xpToday = useProgressStore(selectXpToday);
+  const practisedToday = useProgressStore(selectPractisedToday);
+  const dailyGoal = useProgressStore((s) => s.dailyGoal);
 
   const firstName = user?.firstName ?? "Learner";
   const avatarUrl = user?.imageUrl;
@@ -330,18 +352,21 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View className="flex-row items-center gap-2">
-            <StreakBadge days={STREAK_DAYS} />
+            <StreakBadge days={streakDays} />
             <BellButton onPress={handleNotificationsPress} />
           </View>
         </View>
-        <DailyGoalCard xp={XP_TODAY} goal={XP_GOAL} />
+        <DailyGoalCard xp={xpToday} goal={dailyGoal} />
         <ContinueLearningCard
           languageName={language.name}
           unitOrder={currentUnit.order}
           onPress={() => router.push("/(home)/learn")}
         />
-        <TodaysPlanCard onViewAll={() => router.push("/(home)/learn")} />
-        <NextUpBanner onPress={() => router.push("/(home)/audio-lesson")} />
+        <TodaysPlanCard
+          lessonDone={practisedToday}
+          onViewAll={() => router.push("/(home)/learn")}
+        />
+        <NextUpBanner onPress={() => router.push("/(home)/learn")} />
       </ScrollView>
     </SafeAreaView>
   );

@@ -9,15 +9,17 @@
  *   - Lessons / Practice tab switch
  *   - Lesson cards with status: completed, in progress, or upcoming
  *
- * Progress is mocked locally for now (MOCK_COMPLETED + local selection state).
- * There is intentionally NO locking logic — any lesson can be opened, which
- * here means selecting it as the "in progress" lesson.
+ * Progress comes from useProgressStore (persisted to AsyncStorage): a lesson
+ * counts as completed once the learner has finished an audio session for it.
+ * There is intentionally NO locking logic on lessons — any lesson can be
+ * opened, which here means selecting it as the "in progress" lesson.
  */
 
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   ImageSourcePropType,
   Pressable,
@@ -29,10 +31,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import images from "@/constants/images";
 import { LANGUAGES } from "@/data/languages";
-import { LESSONS } from "@/data/lessons";
-import { UNITS } from "@/data/units";
+import { getUnits } from "@/features/content/repository";
 import { useLanguageStore } from "@/store/useLanguageStore";
-import { LanguageId, Lesson, Unit } from "@/types/learning";
+import { useProgressStore } from "@/store/useProgressStore";
+import type { ManifestLesson, ManifestUnit } from "@/types/content";
 
 // ─── Palette (matches home screen) ────────────────────────────────────────────
 
@@ -50,24 +52,16 @@ const C = {
   lock: "#9CA3AF",
 };
 
-// ─── Mock progress data ───────────────────────────────────────────────────────
-// Which lessons the user has already completed, per language. Real progress
-// tracking (synced + offline) comes later; this drives the status badges now.
-
-const MOCK_COMPLETED: Record<LanguageId, string[]> = {
-  "hausa-ajami": ["hausa-lesson-1-1", "hausa-lesson-1-2"],
-  "swahili-ajami": ["swahili-lesson-1-1"],
-  "wolof-ajami": [],
-};
-
 // ─── Unit artwork ─────────────────────────────────────────────────────────────
-// Local assets where we have a fitting image; Picsum placeholders otherwise.
+// Bundled assets only — no remote placeholder services. Remote art would show
+// as an empty box on a slow or offline connection, and the unit hero is the
+// first thing on this screen. Units with no entry fall back to images.ajam.
 
 const UNIT_IMAGES: Record<string, ImageSourcePropType> = {
   "hausa-unit-1": images.palace,
   "hausa-unit-2": images.ajam,
-  "swahili-unit-1": { uri: "https://picsum.photos/seed/swahili-ajami/600/500" },
-  "wolof-unit-1": { uri: "https://picsum.photos/seed/wolof-ajami/600/500" },
+  "swahili-unit-1": images.treasure,
+  "wolof-unit-1": images.palace,
 };
 
 // Themed icons for lesson cards, cycled by lesson position in the unit.
@@ -89,7 +83,7 @@ function UnitHero({
   completedCount,
   totalCount,
 }: {
-  unit: Unit;
+  unit: ManifestUnit;
   completedCount: number;
   totalCount: number;
 }) {
@@ -141,10 +135,10 @@ function UnitChips({
   completedIds,
   onSelect,
 }: {
-  units: Unit[];
+  units: ManifestUnit[];
   activeUnitId: string;
   completedIds: string[];
-  onSelect: (unit: Unit) => void;
+  onSelect: (unit: ManifestUnit) => void;
 }) {
   if (units.length < 2) return null;
 
@@ -163,7 +157,7 @@ function UnitChips({
         const previousUnit = units[index - 1];
         const isLocked =
           previousUnit !== undefined &&
-          !previousUnit.lessonIds.every((id) => completedIds.includes(id));
+          !previousUnit.lessons.every((l) => completedIds.includes(l.id));
         return (
           <Pressable
             key={unit.id}
@@ -239,7 +233,7 @@ function LessonCard({
   status,
   onPress,
 }: {
-  lesson: Lesson;
+  lesson: ManifestLesson;
   index: number;
   status: LessonStatus;
   onPress: () => void;
@@ -295,18 +289,20 @@ function LessonCard({
         )}
         {status === "upcoming" && (
           <Text className="font-poppins-regular text-xs text-[#6B7280]">
-            {lesson.activities.length}{" "}
-            {lesson.activities.length === 1 ? "activity" : "activities"}
+            {lesson.exerciseCount}{" "}
+            {lesson.exerciseCount === 1 ? "exercise" : "exercises"}
           </Text>
         )}
       </View>
 
-      {/* Status indicator (visual only — every lesson stays openable) */}
+      {/* Status indicator. Upcoming lessons show a chevron, not a padlock —
+          every lesson here is openable, and a lock that opens when tapped
+          tells the learner the opposite of what's true. */}
       {status === "completed" && (
         <Ionicons name="checkmark-circle" size={30} color={C.green} />
       )}
       {status === "upcoming" && (
-        <Ionicons name="lock-closed" size={20} color={C.lock} />
+        <Ionicons name="chevron-forward" size={20} color={C.lock} />
       )}
     </Pressable>
   );
@@ -335,29 +331,73 @@ export default function LearnScreen() {
   const router = useRouter();
   const { selectedLanguageId } = useLanguageStore();
 
+  // NOTE: this screen used to warm the vision-agent service on mount, so the
+  // AI teacher's cold start would overlap with lesson browsing. That call is
+  // gone: lessons no longer involve the AI service at all, so waking it would
+  // be a network request on behalf of a feature the learner is not using.
+
   const language =
     LANGUAGES.find((l) => l.id === selectedLanguageId) ?? LANGUAGES[0];
 
-  const units = UNITS.filter((u) => u.languageId === language.id).sort(
-    (a, b) => a.order - b.order
-  );
+  // Content is fetched through the repository rather than imported from
+  // src/data, so Phase 4 can put a cache and a sync in front of it without
+  // touching this screen.
+  const [units, setUnits] = useState<ManifestUnit[]>([]);
+  // The language whose fetch has settled. Deriving `loadingUnits` from it
+  // rather than setting a flag at the top of the effect avoids a redundant
+  // render, and still shows the spinner again when the learner switches
+  // language.
+  const [loadedLanguageId, setLoadedLanguageId] = useState<string | null>(null);
 
-  const completedIds = MOCK_COMPLETED[language.id] ?? [];
+  useEffect(() => {
+    let active = true;
+    const languageId = language.id;
+
+    getUnits(languageId)
+      // A failed lookup falls through to the "no lessons yet" state rather
+      // than leaving the spinner running forever.
+      .catch(() => [])
+      .then((result) => {
+        if (!active) return;
+        setUnits(result);
+        setLoadedLanguageId(languageId);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [language.id]);
+
+  const loadingUnits = loadedLanguageId !== language.id;
+
+  const completedIds = useProgressStore((s) => s.completedLessonIds);
+
+  // The unit the learner explicitly picked, if any. Null means "work it out
+  // for me". It must NOT be seeded from `units` in a useState initializer:
+  // units arrive asynchronously, so the initializer would capture the empty
+  // first render and pin the selection to nothing.
+  const [chosenUnitId, setChosenUnitId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>("lessons");
+  // The lesson the learner explicitly tapped, if any. Null means "just show
+  // me where I am" — see activeLessonId below.
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
 
   // Default to the first unit that still has unfinished lessons.
   const defaultUnit =
-    units.find((u) => u.lessonIds.some((id) => !completedIds.includes(id))) ??
+    units.find((u) => u.lessons.some((l) => !completedIds.includes(l.id))) ??
     units[0];
 
-  const [activeUnitId, setActiveUnitId] = useState(defaultUnit?.id ?? "");
-  const [activeTab, setActiveTab] = useState<TabId>("lessons");
-  // The lesson currently "open" / in progress. Tapping any card moves it —
-  // no locking logic for now.
-  const [activeLessonId, setActiveLessonId] = useState<string | null>(
-    defaultUnit?.lessonIds.find((id) => !completedIds.includes(id)) ?? null
-  );
+  const activeUnit = units.find((u) => u.id === chosenUnitId) ?? defaultUnit;
 
-  const activeUnit = units.find((u) => u.id === activeUnitId) ?? units[0];
+  if (loadingUnits) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }}>
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator size="large" color={C.green} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // Empty state: the selected language has no units in the dataset yet.
   if (!activeUnit) {
@@ -378,33 +418,44 @@ export default function LearnScreen() {
     );
   }
 
-  const lessons = activeUnit.lessonIds
-    .map((id) => LESSONS.find((l) => l.id === id))
-    .filter((l): l is Lesson => l !== undefined);
+  // The manifest already carries the unit's lessons in order, so there is no
+  // second lookup to do here any more.
+  const lessons = activeUnit.lessons;
 
   const completedCount = lessons.filter((l) =>
     completedIds.includes(l.id)
   ).length;
 
-  const statusFor = (lesson: Lesson): LessonStatus => {
+  // Which lesson shows the "In progress" badge. An explicit tap wins, but
+  // only until that lesson is actually finished — after that we fall back to
+  // the first unfinished lesson, so completing one advances the badge to the
+  // next instead of leaving it stuck on a lesson already marked complete.
+  const nextUnfinishedId =
+    lessons.find((l) => !completedIds.includes(l.id))?.id ?? null;
+  const activeLessonId =
+    selectedLessonId && !completedIds.includes(selectedLessonId)
+      ? selectedLessonId
+      : nextUnfinishedId;
+
+  const statusFor = (lesson: ManifestLesson): LessonStatus => {
     if (completedIds.includes(lesson.id)) return "completed";
     if (lesson.id === activeLessonId) return "in-progress";
     return "upcoming";
   };
 
-  const handleSelectUnit = (unit: Unit) => {
-    setActiveUnitId(unit.id);
-    setActiveLessonId(
-      unit.lessonIds.find((id) => !completedIds.includes(id)) ?? null
-    );
+  const handleSelectUnit = (unit: ManifestUnit) => {
+    setChosenUnitId(unit.id);
+    // Clear the explicit pick so the new unit re-derives its own position.
+    setSelectedLessonId(null);
   };
 
-  // Tapping a lesson marks it in progress and opens the AI Teacher
-  // audio lesson session for it.
-  const handleOpenLesson = (lesson: Lesson) => {
-    setActiveLessonId(lesson.id);
+  // Tapping a lesson marks it in progress and opens the lesson player. This
+  // used to open the AI Teacher audio session — the change that takes the AI
+  // off the learner's critical path.
+  const handleOpenLesson = (lesson: ManifestLesson) => {
+    setSelectedLessonId(lesson.id);
     router.push({
-      pathname: "/(home)/audio-lesson",
+      pathname: "/(home)/lesson",
       params: { lessonId: lesson.id },
     });
   };
