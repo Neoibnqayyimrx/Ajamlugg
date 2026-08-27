@@ -22,12 +22,11 @@ import images from "@/constants/images";
 import { LANGUAGES } from "@/data/languages";
 import { useCaptionsStore } from "@/store/useCaptionsStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
-
-// Mock progress data — same values/pattern as index.tsx, so Home and
-// Profile agree until a real progress store exists.
-const STREAK_DAYS = 12;
-const XP_TODAY = 15;
-const XP_GOAL = 20;
+import {
+  selectStreakDays,
+  selectXpToday,
+  useProgressStore,
+} from "@/store/useProgressStore";
 
 const C = {
   bg: "#FAF6F0",
@@ -118,11 +117,13 @@ function StatsRow({
   streakDays,
   xpToday,
   xpGoal,
+  lessonsCompleted,
   language,
 }: {
   streakDays: number;
   xpToday: number;
   xpGoal: number;
+  lessonsCompleted: number;
   language: { name: string; script: string; color: string };
 }) {
   return (
@@ -138,6 +139,12 @@ function StatsRow({
         iconColor={C.gold}
         value={`${xpToday}/${xpGoal}`}
         label="XP today"
+      />
+      <StatTile
+        icon="checkmark-done"
+        iconColor={C.green}
+        value={lessonsCompleted}
+        label="Lessons done"
       />
       <StatTile
         scriptChar={language.script}
@@ -179,10 +186,12 @@ function SettingsCard({
   captionsEnabled,
   onToggleCaptions,
   onChangeLanguage,
+  onResetProgress,
 }: {
   captionsEnabled: boolean;
   onToggleCaptions: () => void;
   onChangeLanguage: () => void;
+  onResetProgress: () => void;
 }) {
   return (
     <View>
@@ -207,6 +216,18 @@ function SettingsCard({
           icon="earth-outline"
           label="Change language"
           onPress={onChangeLanguage}
+          right={
+            <Ionicons name="chevron-forward" size={18} color={C.textSub} />
+          }
+        />
+        <View className="h-px bg-[#EDE8E0] ml-14" />
+        {/* Clears streak, XP, and completed lessons back to a first-run
+            state — the only way to replay the new-learner experience
+            without reinstalling the app. */}
+        <SettingsRow
+          icon="refresh-outline"
+          label="Reset progress"
+          onPress={onResetProgress}
           right={
             <Ionicons name="chevron-forward" size={18} color={C.textSub} />
           }
@@ -245,12 +266,29 @@ export default function ProfileScreen() {
   const { selectedLanguageId } = useLanguageStore();
   const { captionsEnabled, toggleCaptions } = useCaptionsStore();
 
+  const streakDays = useProgressStore(selectStreakDays);
+  const xpToday = useProgressStore(selectXpToday);
+  const dailyGoal = useProgressStore((s) => s.dailyGoal);
+  const lessonsCompleted = useProgressStore((s) => s.completedLessonIds.length);
+  const resetProgress = useProgressStore((s) => s.resetProgress);
+
   const name = user?.fullName || user?.firstName || "Learner";
   const email = user?.primaryEmailAddress?.emailAddress;
   const imageUrl = user?.imageUrl;
 
   const language =
     LANGUAGES.find((l) => l.id === selectedLanguageId) ?? LANGUAGES[0];
+
+  const handleResetProgress = () => {
+    Alert.alert(
+      "Reset progress?",
+      "Your streak, XP, and completed lessons will be cleared. This can't be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Reset", style: "destructive", onPress: () => resetProgress() },
+      ],
+    );
+  };
 
   const handleSignOut = () => {
     Alert.alert(
@@ -283,15 +321,17 @@ export default function ProfileScreen() {
         </Text>
         <IdentityCard name={name} email={email} imageUrl={imageUrl} />
         <StatsRow
-          streakDays={STREAK_DAYS}
-          xpToday={XP_TODAY}
-          xpGoal={XP_GOAL}
+          streakDays={streakDays}
+          xpToday={xpToday}
+          xpGoal={dailyGoal}
+          lessonsCompleted={lessonsCompleted}
           language={language}
         />
         <SettingsCard
           captionsEnabled={captionsEnabled}
           onToggleCaptions={toggleCaptions}
           onChangeLanguage={() => router.push("/(home)/languages")}
+          onResetProgress={handleResetProgress}
         />
         <AccountCard onSignOut={handleSignOut} />
       </ScrollView>

@@ -34,6 +34,25 @@ logger = logging.getLogger("ajami_teacher")
 LESSON_API_BASE_URL = (os.getenv("LESSON_API_BASE_URL") or "").rstrip("/")
 HAUSA_LANGUAGE_ID = "hausa-ajami"
 
+# How long the teacher waits alone on the call for the student to arrive
+# before giving up and ending the session.
+#
+# The app asks the teacher to join as soon as the learner OPENS a lesson, not
+# when they tap "Start lesson call" (see prewarm in
+# src/hooks/useAudioLessonCall.ts) — that way the teacher is already on the
+# call and can speak the moment the learner joins, instead of the learner
+# waiting out an agent cold start plus a Gemini Live connect.
+#
+# The cost of that head start is this idle window, during which a Gemini Live
+# session is open with nobody to talk to. Kept deliberately tight because the
+# project is on a metered Gemini quota; it only has to cover the seconds
+# between opening a lesson and tapping start.
+#
+# Must stay below AgentLauncher's agent_idle_timeout so this ends the session
+# cleanly itself rather than being force-closed from underneath.
+STUDENT_WAIT_TIMEOUT_S = 85.0
+AGENT_IDLE_TIMEOUT_S = 90.0
+
 # Every var this service needs to actually function — checked by
 # _fail_fast_on_missing_env() before the server binds, so a missing/blank
 # value fails loudly at startup instead of surfacing later as an opaque
@@ -609,6 +628,31 @@ async def join_call(agent: Agent, call_type: str, call_id: str, **kwargs) -> Non
     async with agent.join(call):
         _register_student_interrupt_handler(agent, agent.ajami_wrap_up)
 
+        # Don't greet an empty room.
+        #
+        # The teacher is now usually FIRST into the call (the app requests the
+        # join when the learner opens the lesson, before they tap start), and
+        # even in the old flow it could win the race against the learner's own
+        # join. Greeting immediately after agent.join() meant the greeting was
+        # spoken to nobody and the learner arrived to silence, having to open
+        # the conversation themselves — the opposite of the intended
+        # "teacher welcomes you in" moment.
+        #
+        # wait_for_participant() resolves as soon as any non-agent participant
+        # is on the call, including one who is ALREADY there when we get here
+        # (it is driven by the participants state map, not just by later
+        # join events), so this is correct whichever side arrives first.
+        try:
+            await agent._connection.wait_for_participant(timeout=STUDENT_WAIT_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            logger.info(
+                "No student joined call %s within %.0fs — ending the session instead "
+                "of holding a Gemini Live connection open.",
+                call_id,
+                STUDENT_WAIT_TIMEOUT_S,
+            )
+            return
+
         lesson_title = lesson.get("title") if lesson else None
         greeting_instruction = (
             f"Gai da dalibi cikin dumi da Hausa, sannan ka fara darasi akan: {lesson_title}."
@@ -627,6 +671,11 @@ runner = Runner(
         # instead of stacking two agents on one call (see H2 in
         # prompts/19-self-audit.md).
         max_sessions_per_call=1,
+        # Bounds how long a teacher sits alone on a call. Raised from the
+        # 60s default so it stays above STUDENT_WAIT_TIMEOUT_S — the wait
+        # above should be what ends an unattended session, not a
+        # force-close from the launcher mid-wait.
+        agent_idle_timeout=AGENT_IDLE_TIMEOUT_S,
     ),
     serve_options=ServeOptions(
         can_start_session=_require_vision_agent_secret,

@@ -22,6 +22,20 @@ const VISION_AGENT_SECRET = process.env.VISION_AGENT_SECRET;
 const TOKEN_VALIDITY_SECONDS = 60 * 60 * 4; // ~4h, SDK refreshes via tokenProvider
 const CALL_TYPE = "default";
 
+// How long the agent-start request itself may take. The vision-agent runs on
+// a Render tier that spins the container down when idle, and a cold start has
+// been measured at ~100s end to end. The previous 5s budget aborted the
+// request mid-cold-start, so the very first lesson after an idle period never
+// got a teacher at all — the request was cancelled before Render finished
+// waking the service.
+const TEACHER_JOIN_REQUEST_TIMEOUT_MS = 120_000;
+
+// How long THIS route waits for that request before answering the client.
+// Deliberately short: we only block long enough to catch an immediate,
+// definitive failure (agent up and refusing). Anything slower is treated as
+// "still coming" rather than "failed" — see the comment at the call site.
+const TEACHER_JOIN_FAST_FAIL_MS = 4_000;
+
 /**
  * Has the Ajami teacher (vision-agent/, Gemini Live) join the call as a
  * second participant. Best-effort: the learner can still have their audio
@@ -52,8 +66,22 @@ async function requestTeacherJoin(callId: string): Promise<boolean> {
         "X-Vision-Agent-Secret": VISION_AGENT_SECRET,
       },
       body: JSON.stringify({ call_type: CALL_TYPE }),
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(TEACHER_JOIN_REQUEST_TIMEOUT_MS),
     });
+    // A teacher is already on this call. The agent runs with
+    // max_sessions_per_call=1, so a duplicate start request is rejected with
+    // 429 (409 defensively) — which is a SUCCESS for our purposes: the
+    // learner gets a teacher either way.
+    //
+    // This matters because the app now requests the join twice for one
+    // lesson: once when the lesson screen opens (prewarm) and again if the
+    // learner taps start after that first session has already been set up.
+    // Treating "already running" as a failure would show a spurious
+    // "Teacher unavailable" banner on a call that has a teacher on it.
+    if (response.status === 429 || response.status === 409) {
+      return true;
+    }
+
     if (!response.ok) {
       console.error(
         `vision-agent session-start failed for call ${callId}: ${response.status}`
@@ -125,7 +153,28 @@ export async function POST(request: Request) {
     return Response.json({ error: "Failed to reserve the lesson call" }, { status: 502 });
   }
 
-  const teacherJoinOk = await requestTeacherJoin(callId);
+  // Start the teacher joining, but don't hold the learner's own call setup
+  // behind it. On a cold start that request can take ~100s; awaiting it in
+  // full would leave the learner staring at a "Connecting…" spinner for two
+  // minutes before they can even join their own lesson.
+  //
+  // So we wait only TEACHER_JOIN_FAST_FAIL_MS for a definitive answer:
+  //   false     → the agent answered and the start failed  → report it
+  //   true      → the agent joined quickly (warm)          → all good
+  //   undefined → still in flight (likely a cold start)    → NOT a failure
+  //
+  // "Still in flight" must not be reported as a failure: the client already
+  // detects the teacher by watching for its participant id on the call, so a
+  // teacher that arrives late still resolves to "joined" on screen. Calling
+  // it failed here would show a "Teacher unavailable" banner for a teacher
+  // that is, in fact, on its way.
+  const joinRequest = requestTeacherJoin(callId);
+  const fastResult = await Promise.race([
+    joinRequest,
+    new Promise<undefined>((resolve) =>
+      setTimeout(() => resolve(undefined), TEACHER_JOIN_FAST_FAIL_MS)
+    ),
+  ]);
 
   return Response.json({
     apiKey: STREAM_API_KEY,
@@ -133,6 +182,6 @@ export async function POST(request: Request) {
     token,
     callId,
     callType: CALL_TYPE,
-    teacherJoinFailed: !teacherJoinOk,
+    teacherJoinFailed: fastResult === false,
   });
 }

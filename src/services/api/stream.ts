@@ -40,6 +40,24 @@ function getApiBaseUrl(): string {
   );
 }
 
+/**
+ * Nudge the AI teacher service awake ahead of time. Fire-and-forget: nothing
+ * waits on it and failures are ignored, since it is an optimisation, not a
+ * step in starting a lesson.
+ *
+ * Called from the Learn screen so the wake-up overlaps with the learner
+ * browsing lessons instead of with them waiting to start one.
+ */
+export function warmAgentService(): void {
+  let url: string;
+  try {
+    url = `${getApiBaseUrl()}/api/agent/warm`;
+  } catch {
+    return; // No resolvable API host (e.g. bare web build) — nothing to warm.
+  }
+  fetch(url, { method: "GET" }).catch(() => undefined);
+}
+
 export async function fetchStreamSession(
   getClerkSessionToken: () => Promise<string | null>,
   params: StreamSessionParams

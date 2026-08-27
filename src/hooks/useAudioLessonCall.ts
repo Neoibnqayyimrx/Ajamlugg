@@ -28,6 +28,26 @@ export type AudioLessonCallStatus =
   | "error"
   | "ended";
 
+/**
+ * How long a prewarmed session stays usable.
+ *
+ * Two clocks bound this. The Stream user token is valid for hours, so it
+ * isn't the constraint — the teacher is. An agent that joined during prewarm
+ * leaves again if it sits alone for STUDENT_WAIT_TIMEOUT_S (85s, see
+ * vision-agent/agent.py). Past that point the prewarmed session still has a
+ * valid token but no teacher behind it, so start() re-requests rather than
+ * reusing it, which re-triggers the agent join.
+ *
+ * Deliberately shorter than the agent's own window to leave room for the
+ * request itself.
+ */
+const PREWARM_TTL_MS = 60_000;
+
+interface PrewarmedSession {
+  session: Awaited<ReturnType<typeof fetchStreamSession>>;
+  fetchedAt: number;
+}
+
 interface UseAudioLessonCallParams {
   lessonId: string;
   languageId: string;
@@ -70,6 +90,10 @@ export function useAudioLessonCall({
   // prompts/19-self-audit.md.
   const startGuardRef = useRef(false);
 
+  // The session fetched ahead of time by prewarm(), if it's still fresh.
+  const prewarmedRef = useRef<PrewarmedSession | null>(null);
+  const prewarmInFlightRef = useRef<Promise<void> | null>(null);
+
   const teardown = useCallback(async () => {
     const activeCall = callRef.current;
     if (activeCall && activeCall.state.callingState !== CallingState.LEFT) {
@@ -91,6 +115,49 @@ export function useAudioLessonCall({
       teardown();
     };
   }, [teardown]);
+
+  /**
+   * Reserve the call and get the teacher moving BEFORE the learner taps
+   * start — called when the lesson screen opens.
+   *
+   * This is what makes the lesson feel instant. Without it, tapping "Start
+   * lesson call" pays for, in series: the session round trip, the agent
+   * service waking up if it had scaled to zero, the agent joining, and its
+   * Gemini Live connect — all while the learner watches a spinner. Doing it
+   * during the seconds they spend on the pre-call screen moves that work
+   * off the critical path, so start() is left with just the local join.
+   *
+   * Best-effort and deliberately silent: it never touches `status` or
+   * `errorMessage`, so a failure here shows the learner nothing and start()
+   * simply fetches normally and reports any real error itself.
+   */
+  const prewarm = useCallback(async () => {
+    if (!lessonId || !languageId) return;
+    // Already warm, or already warming — don't stack requests.
+    if (prewarmInFlightRef.current) return;
+    const existing = prewarmedRef.current;
+    if (existing && Date.now() - existing.fetchedAt < PREWARM_TTL_MS) return;
+
+    const run = (async () => {
+      try {
+        const session = await fetchStreamSession(() => getToken(), {
+          lessonId,
+          languageId,
+          lessonTitle,
+        });
+        if (!mountedRef.current) return;
+        prewarmedRef.current = { session, fetchedAt: Date.now() };
+      } catch (err) {
+        // Nothing user-facing: the learner hasn't asked for anything yet.
+        console.warn("Lesson prewarm failed (will retry on start)", err);
+      } finally {
+        prewarmInFlightRef.current = null;
+      }
+    })();
+
+    prewarmInFlightRef.current = run;
+    await run;
+  }, [getToken, lessonId, languageId, lessonTitle]);
 
   const start = useCallback(async () => {
     if (startGuardRef.current) return;
@@ -123,7 +190,18 @@ export function useAudioLessonCall({
     const sessionParams = { lessonId, languageId, lessonTitle };
 
     try {
-      const session = await fetchStreamSession(getClerkSessionToken, sessionParams);
+      // Reuse the session prewarm() already fetched when the screen opened,
+      // if it's still fresh enough that the teacher is still on the call.
+      // This is the round trip the learner would otherwise wait through.
+      // Falling back to a live fetch covers a failed/expired prewarm — and
+      // that request re-triggers the agent join, which is safe because the
+      // server treats "a teacher is already here" as success.
+      const warm = prewarmedRef.current;
+      const session =
+        warm && Date.now() - warm.fetchedAt < PREWARM_TTL_MS
+          ? warm.session
+          : await fetchStreamSession(getClerkSessionToken, sessionParams);
+      prewarmedRef.current = null;
       if (await abortIfUnmounted()) return;
       setTeacherJoinFailed(session.teacherJoinFailed);
 
@@ -192,6 +270,7 @@ export function useAudioLessonCall({
     client,
     call,
     teacherJoinFailed,
+    prewarm,
     start,
     endCall,
     toggleMic,

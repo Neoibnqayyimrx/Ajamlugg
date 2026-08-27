@@ -1,56 +1,116 @@
-# Welcome to your Expo app 👋
+# Ajamlugg
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+**Learn. Read. Preserve.**
 
-## Get started
+A mobile app for learning to read and write African languages in *Ajami* —
+the Arabic script as it has been adapted for Hausa, Swahili, Wolof, Yoruba,
+and Fulfulde. Learners work through structured lessons and practise out loud
+with an AI teacher that speaks to them in their own language over a live
+audio call.
 
-1. Install dependencies
+Hausa Ajami is the language available today; the others are modelled in the
+content system and marked "coming soon" in the app.
 
-   ```bash
-   npm install
-   ```
+---
 
-2. Start the app
+## What's in the repo
 
-   ```bash
-   npx expo start
-   ```
+| Path | What it is |
+| --- | --- |
+| [`src/app/`](src/app/) | Expo Router screens + server routes (`+api.ts`) |
+| [`src/data/`](src/data/) | The lesson content system — languages, units, lessons |
+| [`src/hooks/useAudioLessonCall.ts`](src/hooks/useAudioLessonCall.ts) | Owns the Stream Video call for one lesson session |
+| [`src/store/`](src/store/) | Zustand + AsyncStorage state (language, progress, captions) |
+| [`vision-agent/`](vision-agent/) | Python voice agent — the AI teacher (Gemini Live) |
+| [`prompts/`](prompts/) | Build log: the prompt-by-prompt history of how this was made |
 
-In the output, you'll find options to open the app in a
+## How the AI lesson works
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+The interesting part of the architecture is that the app and the AI teacher
+meet inside a Stream Video call that neither of them creates unilaterally:
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+1. The learner opens a lesson. The app calls `POST /api/stream/session`
+   ([session+api.ts](src/app/api/stream/session+api.ts)) with their Clerk
+   session token.
+2. That route **verifies the token server-side**, derives the Stream user id
+   from it (the client never names its own id), mints a Stream token, and
+   reserves a private call scoped to `(language, lesson, user)`. The Stream
+   API secret never leaves the server.
+3. The same route pings the `vision-agent` service, which joins that call as
+   a second participant.
+4. The agent reads the lesson id from the call's custom data, fetches the
+   lesson content from `GET /api/lessons/:lessonId`, builds a Hausa-only
+   system prompt from it, and starts teaching.
+5. Both sides' speech is transcribed and pushed back to the app as Stream
+   custom events, which render as live captions.
 
-## Get a fresh project
+## Running it locally
 
-When you're ready, run:
+The app and agent are already deployed (see [Deploying](#deploying)) — a
+development build runs against that live backend without anything on your
+machine. The steps below are for working on the backend pieces themselves.
 
 ```bash
-npm run reset-project
+# 1. Install
+npm install
+
+# 2. Configure — fill in every key
+cp .env.example .env
+
+# 3. Start the app (also serves the +api.ts routes on :8081)
+npm start
+
+# 4. In a second terminal, start the AI teacher
+cd vision-agent
+cp .env.example .env      # fill in, then:
+uv sync
+uv run agent.py serve
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+The audio lesson needs a **development build**, not Expo Go — it depends on
+`react-native-webrtc` native modules. See
+[Expo development builds](https://docs.expo.dev/develop/development-builds/introduction/).
 
-### Other setup steps
+### Checks
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm run typecheck     # tsc --noEmit
+npm run lint          # eslint
 
-## Learn more
+cd vision-agent
+uv run pytest -m "not integration"   # fast, offline — what CI runs
+uv run pytest -m integration         # calls the real Gemini API (uses quota)
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## Deploying
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+Three independently-deployed pieces:
 
-## Join the community
+| Piece | Runs on |
+| --- | --- |
+| `vision-agent/` (AI teacher) | Render, Docker — [`Dockerfile`](vision-agent/Dockerfile) |
+| API routes + web bundle | EAS Hosting (`eas deploy`) |
+| Mobile app | EAS Build (binaries) + EAS Update (OTA) |
 
-Join our community of developers creating universal apps.
+Deployment config lives in `DEPLOYMENT.md` (kept out of version control) and
+[`eas.json`](eas.json). Build-time and server-side variables come from **EAS
+environment variables**, not from `.env` — `.env` is local development only.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+> **Cold starts.** The agent's hosting tier spins the container down when
+> idle; a fully cold start takes ~100s. The join path tolerates this (see
+> `TEACHER_JOIN_REQUEST_TIMEOUT_MS` in
+> [session+api.ts](src/app/api/stream/session+api.ts)), but the first lesson
+> after an idle period will have the teacher arrive late. Keep the service
+> warm before any live demo.
+
+## Status
+
+An MVP. What's real: authentication, the lesson content system, the live
+audio call with the AI teacher, live captions, and locally-persisted
+progress (streak, XP, completed lessons). What isn't yet: a server-side
+progress backend, skill scoring, the Chat and AI Teacher tabs, and languages
+beyond Hausa.
+
+## License
+
+See [LICENSE](LICENSE).

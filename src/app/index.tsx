@@ -14,7 +14,6 @@ export default function Index() {
   }
 
   if (isSignedIn) {
-    // TODO: replace with your real home screen once built
     return <Redirect href="/(home)" />;
   }
 

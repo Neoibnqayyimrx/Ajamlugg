@@ -51,6 +51,12 @@ import { LESSONS } from "@/data/lessons";
 import { UNITS } from "@/data/units";
 import { AudioLessonCallStatus, useAudioLessonCall } from "@/hooks/useAudioLessonCall";
 import { useCaptionsStore } from "@/store/useCaptionsStore";
+import {
+  selectStreakDays,
+  selectXpToday,
+  useProgressStore,
+  XP_PER_LESSON,
+} from "@/store/useProgressStore";
 import { Lesson, Vocabulary } from "@/types/learning";
 
 // ─── Palette (matches home + learn screens) ───────────────────────────────────
@@ -77,18 +83,29 @@ const C = {
 // handling registered in that same file).
 const TEACHER_USER_ID = "ajami-teacher";
 const STUDENT_INTERRUPT_EVENT_TYPE = "student_interrupt";
-const TEACHER_JOIN_TIMEOUT_MS = 20_000;
+// How long to wait for the teacher's participant to appear before showing the
+// "Teacher unavailable" banner. Sized for a cold start of the vision-agent
+// service (measured at ~100s from fully spun down), not for the warm case —
+// at 20s the banner fired during a perfectly healthy cold start and told the
+// learner the teacher wasn't coming seconds before it arrived.
+//
+// Showing it late costs nothing: `teacherPresent` takes priority in
+// teacherStatus below, so the moment the teacher joins the banner goes away
+// on its own, whether or not this timer has elapsed.
+const TEACHER_JOIN_TIMEOUT_MS = 120_000;
 
 type TeacherStatus = "joining" | "joined" | "not-available";
 
-// ─── Mock session feedback ─────────────────────────────────────────────────────
-// Real scores come from the AI agent later; these drive the design's
-// "Your progress in this lesson" card for now.
+// ─── Skill areas the AI teacher will eventually score ─────────────────────────
+// Labels only — no numbers. The agent does not grade the learner yet, so
+// anything quantitative here would be invented. Shown as an explicit
+// "coming soon" preview rather than fabricated ratings, which would read as
+// real assessment to anyone using the app.
 
-const SESSION_FEEDBACK = [
-  { id: "speaking", label: "Speaking", rating: "Excellent", icon: "megaphone" as const, variant: "emerald" as const, color: C.green, progress: 0.9 },
-  { id: "pronunciation", label: "Pronunciation", rating: "Great", icon: "mic" as const, variant: "gold" as const, color: C.gold, progress: 0.65 },
-  { id: "grammar", label: "Grammar", rating: "Good", icon: "book" as const, variant: "emerald" as const, color: C.green, progress: 0.75 },
+const SKILL_AREAS = [
+  { id: "speaking", label: "Speaking", icon: "megaphone" as const },
+  { id: "pronunciation", label: "Pronunciation", icon: "mic" as const },
+  { id: "grammar", label: "Grammar", icon: "book" as const },
 ];
 
 // ─── Live captions (AI teacher's + learner's realtime transcript) ─────────────
@@ -871,38 +888,92 @@ function LessonInfoCard({
   );
 }
 
-// ─── Session feedback card ─────────────────────────────────────────────────────
+// ─── Session summary (shown only after a session actually ends) ───────────────
+// Every number here is real and comes from useProgressStore — the XP the
+// learner just earned, their live streak, and their progress toward today's
+// goal.
 
-function SessionFeedbackCard() {
+function SessionSummaryCard({
+  xpEarned,
+  xpToday,
+  dailyGoal,
+  streakDays,
+}: {
+  xpEarned: number;
+  xpToday: number;
+  dailyGoal: number;
+  streakDays: number;
+}) {
+  const goalPct = dailyGoal > 0 ? Math.min(xpToday / dailyGoal, 1) : 0;
+
   return (
-    <View className="mx-5 mt-5 bg-[#FFFCF5] rounded-2xl border border-[#EDE8E0] px-2 py-5">
-      <View className="flex-row items-center justify-center gap-2 mb-4">
+    <View className="mx-5 mt-5 bg-[#FFFCF5] rounded-2xl border border-[#EDE8E0] px-5 py-5 gap-4">
+      <View className="flex-row items-center justify-center gap-2">
         <Ionicons name="sparkles" size={14} color={C.gold} />
         <Text className="font-poppins-semibold text-[15px] text-[#1A1A1A]">
-          Your progress in this lesson
+          Lesson complete
         </Text>
         <Ionicons name="sparkles" size={14} color={C.gold} />
       </View>
 
       <View className="flex-row">
-        {SESSION_FEEDBACK.map((item, i) => (
+        <View className="flex-1 items-center gap-1">
+          <Text className="font-poppins-bold text-[24px] text-[#1B6B3A]">+{xpEarned}</Text>
+          <Text className="font-poppins-regular text-[12px] text-[#6B7280]">XP earned</Text>
+        </View>
+        <View className="flex-1 items-center gap-1 border-l border-[#EDE8E0]">
+          <Text className="font-poppins-bold text-[24px] text-[#D4A017]">{streakDays}</Text>
+          <Text className="font-poppins-regular text-[12px] text-[#6B7280]">
+            {streakDays === 1 ? "Day streak" : "Days streak"}
+          </Text>
+        </View>
+      </View>
+
+      <View className="gap-1.5">
+        <View className="flex-row justify-between">
+          <Text className="font-poppins-medium text-[12px] text-[#6B7280]">Today&rsquo;s goal</Text>
+          <Text className="font-poppins-semibold text-[12px] text-[#1A1A1A]">
+            {xpToday} / {dailyGoal} XP
+          </Text>
+        </View>
+        <ProgressBar progress={goalPct} variant="emerald" height={6} />
+      </View>
+    </View>
+  );
+}
+
+// ─── Skill scoring preview ────────────────────────────────────────────────────
+// Deliberately shows no scores. The AI teacher doesn't assess the learner
+// yet, and a placeholder rating would be indistinguishable from a real one.
+
+function SkillsPreviewCard() {
+  return (
+    <View className="mx-5 mt-5 bg-[#FFFFFF] rounded-2xl border border-[#EDE8E0] px-2 py-5">
+      <View className="flex-row items-center justify-center gap-2 mb-1">
+        <Text className="font-poppins-semibold text-[15px] text-[#1A1A1A]">
+          Skill feedback
+        </Text>
+        <View className="bg-[#FDF6E3] rounded-full px-2 py-0.5">
+          <Text className="font-poppins-semibold text-[10px] text-[#8A6D3B]">Coming soon</Text>
+        </View>
+      </View>
+      <Text className="font-poppins-regular text-[12px] text-[#6B7280] text-center mb-4 px-4">
+        Your teacher will score these areas after each session.
+      </Text>
+
+      <View className="flex-row">
+        {SKILL_AREAS.map((item, i) => (
           <View
             key={item.id}
             className={`flex-1 items-center gap-1.5 px-3 ${
               i > 0 ? "border-l border-[#EDE8E0]" : ""
             }`}
           >
-            <View
-              className="w-12 h-12 rounded-full items-center justify-center"
-              style={{ backgroundColor: item.color }}
-            >
-              <Ionicons name={item.icon} size={20} color="#FFFFFF" />
+            <View className="w-12 h-12 rounded-full items-center justify-center bg-[#F1EAE0]">
+              <Ionicons name={item.icon} size={20} color={C.muted} />
             </View>
-            <Text className="font-poppins-medium text-[13px] text-[#1A1A1A]">{item.label}</Text>
-            <Text className="font-poppins-bold text-[15px]" style={{ color: item.color }}>
-              {item.rating}
-            </Text>
-            <ProgressBar progress={item.progress} variant={item.variant} height={6} />
+            <Text className="font-poppins-medium text-[13px] text-[#6B7280]">{item.label}</Text>
+            <Text className="font-poppins-regular text-[13px] text-[#9CA3AF]">—</Text>
           </View>
         ))}
       </View>
@@ -939,6 +1010,38 @@ export default function AudioLessonScreen() {
     userName,
     userImage: user?.imageUrl,
   });
+
+  // ── Get the teacher moving before the learner taps start ──────────────────
+  // The pre-call screen is a few seconds of reading time; spending it
+  // reserving the call and bringing the teacher in means "Start lesson call"
+  // only has to do the local join. See prewarm() in useAudioLessonCall.
+  const { prewarm } = callSession;
+  useEffect(() => {
+    if (lesson && language) prewarm();
+  }, [lesson, language, prewarm]);
+
+  // ── Award progress once the session actually ends ─────────────────────────
+  // "ended" is only reachable via the End call button, which is itself only
+  // rendered once the call is live — so this can't fire for a session the
+  // learner never joined.
+  const completeLesson = useProgressStore((s) => s.completeLesson);
+  const xpToday = useProgressStore(selectXpToday);
+  const streakDays = useProgressStore(selectStreakDays);
+  const dailyGoal = useProgressStore((s) => s.dailyGoal);
+
+  // Guards against re-awarding on every re-render while status stays
+  // "ended". Cleared when a new call goes live so restarting the lesson
+  // earns its XP again — repeat practice is still practice.
+  const awardedRef = useRef(false);
+  useEffect(() => {
+    if (!lesson) return;
+    if (callSession.status === "joined") {
+      awardedRef.current = false;
+    } else if (callSession.status === "ended" && !awardedRef.current) {
+      awardedRef.current = true;
+      completeLesson(lesson.id);
+    }
+  }, [callSession.status, lesson, completeLesson]);
 
   const goBack = () => {
     if (router.canGoBack()) router.back();
@@ -1005,7 +1108,19 @@ export default function AudioLessonScreen() {
           />
         )}
 
-        <SessionFeedbackCard />
+        {/* Only after a real session — previously this rendered immediately,
+            so the learner saw scores for a lesson they hadn't started. */}
+        {callSession.status === "ended" && (
+          <>
+            <SessionSummaryCard
+              xpEarned={XP_PER_LESSON}
+              xpToday={xpToday}
+              dailyGoal={dailyGoal}
+              streakDays={streakDays}
+            />
+            <SkillsPreviewCard />
+          </>
+        )}
 
         <LessonInfoCard languageName={language.name} lesson={lesson} phrases={phrases} />
       </ScrollView>
